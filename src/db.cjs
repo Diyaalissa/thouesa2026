@@ -8,7 +8,9 @@ const pool = mysql.createPool({
   database: process.env.DB_NAME || 'thoumaqd_thouesa',
   charset: 'utf8mb4',
   waitForConnections: true,
-  connectionLimit: 20,
+  connectionLimit: 10, // Reduced for shared hosting stability
+  maxIdle: 10,
+  idleTimeout: 60000,
   queueLimit: 0,
   connectTimeout: 10000,
   enableKeepAlive: true,

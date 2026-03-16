@@ -223,13 +223,13 @@ app.get('/api/server-info', (req, res) => {
 });
 
 // Static Files (No CSRF)
-app.use('/web', express.static(path.join(process.cwd(), 'web')));
-app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
+app.use('/web', express.static(path.join(__dirname, '../web')));
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 // Dashboard Routes (No CSRF)
-app.get('/client', (req, res) => res.sendFile(path.join(process.cwd(), 'web/client.html')));
-app.get('/gate77', (req, res) => res.sendFile(path.join(process.cwd(), 'web/gate77.html')));
-app.get('/status', (req, res) => res.sendFile(path.join(process.cwd(), 'web/status.html')));
+app.get('/client', (req, res) => res.sendFile(path.join(__dirname, '../web/client.html')));
+app.get('/gate77', (req, res) => res.sendFile(path.join(__dirname, '../web/gate77.html')));
+app.get('/status', (req, res) => res.sendFile(path.join(__dirname, '../web/status.html')));
 
 // CSRF Protection
 const csrfProtection = csrf({ 
@@ -279,7 +279,7 @@ setInterval(async () => {
 // SPA Fallback
 app.get('*', (req, res, next) => {
   if (req.url.startsWith('/api')) return next();
-  res.sendFile(path.join(process.cwd(), 'web/index.html'));
+  res.sendFile(path.join(__dirname, '../web/index.html'));
 });
 
 // Global Error Handler

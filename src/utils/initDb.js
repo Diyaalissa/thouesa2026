@@ -20,7 +20,7 @@ exports.initDatabase = async () => {
     }
 
     // Force existing tables to utf8mb4 and CHAR(36) for IDs
-    const tables = ['users', 'addresses', 'orders', 'payments', 'wallet_transactions', 'notifications', 'logs', 'refresh_tokens', 'settings'];
+    const tables = ['users', 'addresses', 'orders', 'shipments', 'payments', 'wallet_transactions', 'notifications', 'logs', 'refresh_tokens', 'settings', 'trips', 'reviews', 'transactions'];
     for (const table of tables) {
       try {
         await db.query(`ALTER TABLE \`${table}\` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`);
