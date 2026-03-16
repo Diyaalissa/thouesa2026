@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>حالة النظام - THOUESA</title>
+    <link rel="stylesheet" href="/web/css/style.css">
+    <link rel="stylesheet" href="/web/css/fire-steel.css">
+    <style>
+        .status-card {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-left: 10px;
+        }
+        .status-ok { background: #4caf50; box-shadow: 0 0 10px #4caf50; }
+        .status-error { background: #f44336; box-shadow: 0 0 10px #f44336; }
+    </style>
+</head>
+<body class="dark-theme">
+    <div class="container" style="max-width: 800px; margin-top: 50px;">
+        <div class="text-center" style="margin-bottom: 40px;">
+            <img id="site-logo" src="/web/assets/logo/logo.png" alt="logo" style="height: 80px; margin-bottom: 20px;">
+            <h1 id="site-name">THOUESA</h1>
+            <p class="text-muted">حالة النظام والخدمات</p>
+        </div>
+
+        <div id="health-status" class="status-card">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <h3>حالة السيرفر</h3>
+                <div id="server-indicator" class="status-indicator status-ok"></div>
+            </div>
+            <p id="server-msg">جاري الفحص...</p>
+        </div>
+
+        <div id="db-status" class="status-card">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <h3>قاعدة البيانات</h3>
+                <div id="db-indicator" class="status-indicator status-ok"></div>
+            </div>
+            <p id="db-msg">جاري الفحص...</p>
+        </div>
+
+        <div class="status-card">
+            <h3>معلومات النظام</h3>
+            <div id="system-info" style="margin-top: 15px; font-family: monospace; font-size: 0.9rem;">
+                جاري تحميل المعلومات...
+            </div>
+        </div>
+
+        <div class="text-center">
+            <a href="/" class="btn btn-glass">العودة للرئيسية</a>
+        </div>
+    </div>
+
+    <script type="module" src="/web/js/site-init.js"></script>
+    <script>
+        async function checkStatus() {
+            try {
+                const healthRes = await fetch('/api/health');
+                const health = await healthRes.json();
+                
+                document.getElementById('server-indicator').className = `status-indicator status-${health.status === 'ok' ? 'ok' : 'error'}`;
+                document.getElementById('server-msg').innerText = `السيرفر يعمل بشكل طبيعي (الإصدار: ${health.version})`;
+                
+                document.getElementById('db-indicator').className = `status-indicator status-${health.database === 'connected' ? 'ok' : 'error'}`;
+                document.getElementById('db-msg').innerText = health.database === 'connected' ? 'قاعدة البيانات متصلة' : 'خطأ في الاتصال بقاعدة البيانات';
+                
+                const infoRes = await fetch('/api/server-info');
+                const info = await infoRes.json();
+                
+                const infoHtml = `
+                    <div>وقت التشغيل: ${Math.floor(info.uptime / 3600)} ساعة ${Math.floor((info.uptime % 3600) / 60)} دقيقة</div>
+                    <div>الذاكرة المستخدمة: ${Math.round(info.memoryUsage.rss / 1024 / 1024)} MB</div>
+                    <div>نظام التشغيل: ${info.os.platform} ${info.os.release}</div>
+                    <div>المعالجات: ${info.os.cpus}</div>
+                    <div>الذاكرة الكلية: ${Math.round(info.os.totalMemory / 1024 / 1024 / 1024)} GB</div>
+                `;
+                document.getElementById('system-info').innerHTML = infoHtml;
+                
+            } catch (error) {
+                console.error('Status check failed:', error);
+                document.getElementById('server-indicator').className = 'status-indicator status-error';
+                document.getElementById('server-msg').innerText = 'فشل الاتصال بالسيرفر';
+            }
+        }
+
+        checkStatus();
+        setInterval(checkStatus, 30000);
+    </script>
+</body>
+</html>

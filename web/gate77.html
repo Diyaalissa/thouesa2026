@@ -1,0 +1,1046 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#0a0a0a">
+    <title>تحويسة THOUESA | لوحة الإدارة</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700;900&display=swap');
+        
+        :root {
+            --bg: #0a0a0a;
+            --accent: #FF8A00;
+            --accent-glow: rgba(255, 138, 0, 0.2);
+            --text: #ffffff;
+            --text-dim: rgba(255, 255, 255, 0.6);
+            --glass: rgba(255, 255, 255, 0.03);
+            --border: rgba(255, 255, 255, 0.08);
+            --card-bg: #111111;
+            --font-main: 'Tajawal', sans-serif;
+            --success: #00E676;
+            --danger: #FF5252;
+            --warning: #FFD600;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+        
+        body {
+            font-family: var(--font-main);
+            background-color: var(--bg); 
+            color: var(--text);
+            direction: rtl; 
+            overflow-x: hidden;
+            line-height: 1.6;
+        }
+
+        /* Sidebar Style */
+        .sidebar {
+            position: fixed;
+            right: 0; top: 0; bottom: 0;
+            width: 280px;
+            background: #0f0f0f;
+            border-left: 1px solid var(--border);
+            padding: 30px 20px;
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            gap: 40px;
+        }
+
+        .logo { 
+            display: flex; 
+            align-items: center; 
+            gap: 12px; 
+            text-decoration: none; 
+            color: inherit; 
+            padding: 0 10px;
+        }
+        .logo span { font-weight: 900; font-size: 24px; color: var(--accent); letter-spacing: -0.5px; }
+        .logo small { font-size: 10px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 2px; }
+
+        .nav-links { display: flex; flex-direction: column; gap: 8px; }
+        .nav-link {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            padding: 14px 18px;
+            border-radius: 14px;
+            color: var(--text-dim);
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 15px;
+        }
+        .nav-link:hover { background: var(--glass); color: var(--text); }
+        .nav-link.active { background: var(--accent-glow); color: var(--accent); }
+        .nav-link svg { width: 22px; height: 22px; }
+
+        /* Main Content */
+        .main-content {
+            margin-right: 280px;
+            padding: 40px;
+            min-height: 100vh;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 40px;
+        }
+
+        .header-title h1 { font-size: 32px; font-weight: 900; margin-bottom: 5px; }
+        .header-title p { color: var(--text-dim); }
+
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 25px;
+            margin-bottom: 40px;
+        }
+
+        .stat-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 24px;
+            padding: 25px;
+            position: relative;
+            overflow: hidden;
+        }
+        .stat-card::after {
+            content: '';
+            position: absolute;
+            top: 0; right: 0; width: 100px; height: 100px;
+            background: radial-gradient(circle, var(--accent-glow) 0%, transparent 70%);
+            opacity: 0.5;
+        }
+        .stat-card h3 { font-size: 14px; color: var(--text-dim); margin-bottom: 10px; }
+        .stat-card .value { font-size: 36px; font-weight: 900; color: var(--accent); }
+        .stat-card .trend { font-size: 12px; margin-top: 10px; display: flex; align-items: center; gap: 5px; }
+        .trend.up { color: var(--success); }
+        .trend.down { color: var(--danger); }
+
+        /* Tables */
+        .card {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 24px;
+            padding: 30px;
+            margin-bottom: 30px;
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 25px;
+        }
+        .card-header h2 { font-size: 20px; font-weight: 800; }
+
+        .table-container { overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; min-width: 800px; }
+        th { text-align: right; padding: 15px; color: var(--text-dim); font-size: 13px; border-bottom: 1px solid var(--border); }
+        td { padding: 18px 15px; border-bottom: 1px solid var(--border); font-size: 14px; }
+        tr:last-child td { border-bottom: none; }
+
+        /* Badges */
+        .badge {
+            padding: 6px 12px;
+            border-radius: 100px;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+        .badge-pending { background: rgba(255, 214, 0, 0.1); color: var(--warning); }
+        .badge-success { background: rgba(0, 230, 118, 0.1); color: var(--success); }
+        .badge-danger { background: rgba(255, 82, 82, 0.1); color: var(--danger); }
+        .badge-info { background: rgba(0, 176, 255, 0.1); color: #00B0FF; }
+
+        /* Buttons */
+        .btn {
+            padding: 12px 24px;
+            border-radius: 14px;
+            font-weight: 700;
+            cursor: pointer;
+            border: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 14px;
+            transition: 0.3s;
+        }
+        .btn-primary { background: var(--accent); color: #000; }
+        .btn-primary:hover { transform: translateY(-3px); box-shadow: 0 10px 20px var(--accent-glow); }
+        .btn-glass { background: var(--glass); color: var(--text); border: 1px solid var(--border); }
+        .btn-glass:hover { background: rgba(255,255,255,0.06); }
+        .btn-icon { width: 40px; height: 40px; padding: 0; justify-content: center; }
+
+        /* Inputs */
+        .fs-input {
+            background: rgba(255,255,255,0.03);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 12px 18px;
+            color: #fff;
+            font-family: inherit;
+            width: 100%;
+            outline: none;
+        }
+        .fs-input:focus { border-color: var(--accent); background: rgba(255,255,255,0.05); }
+
+        /* Modals */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.8);
+            backdrop-filter: blur(10px);
+            z-index: 2000;
+            display: none;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        .modal {
+            background: #111;
+            border: 1px solid var(--border);
+            border-radius: 30px;
+            width: 100%;
+            max-width: 600px;
+            padding: 40px;
+            position: relative;
+        }
+        .modal-close {
+            position: absolute;
+            top: 25px; left: 25px;
+            background: var(--glass);
+            border: none;
+            color: #fff;
+            width: 40px; height: 40px;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+
+        /* Tabs */
+        .tab-content { display: none; }
+        .tab-content.active { display: block; animation: fadeIn 0.5s ease; }
+
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* Responsive */
+        @media (max-width: 1024px) {
+            .sidebar { width: 80px; padding: 30px 10px; }
+            .sidebar .logo span, .sidebar .nav-link span { display: none; }
+            .main-content { margin-right: 80px; }
+        }
+
+        @media (max-width: 768px) {
+            .sidebar { 
+                width: 100%; height: 70px; top: auto; bottom: 0; 
+                flex-direction: row; justify-content: space-around; padding: 0;
+                border-left: none; border-top: 1px solid var(--border);
+            }
+            .sidebar .logo { display: none; }
+            .nav-links { flex-direction: row; width: 100%; justify-content: space-around; }
+            .nav-link { flex-direction: column; gap: 5px; font-size: 10px; padding: 10px; }
+            .main-content { margin-right: 0; padding: 20px; padding-bottom: 100px; }
+            header { flex-direction: column; align-items: flex-start; gap: 20px; }
+        }
+
+        /* Admin Login Overlay */
+        #admin-auth-overlay {
+            position: fixed;
+            inset: 0;
+            background: var(--bg);
+            z-index: 3000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        .login-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 30px;
+            width: 100%;
+            max-width: 400px;
+            padding: 40px;
+            text-align: center;
+        }
+        .login-card h2 { font-size: 24px; margin-bottom: 10px; }
+        .login-card p { color: var(--text-dim); margin-bottom: 30px; }
+
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+
+    <!-- Admin Auth -->
+    <div id="admin-auth-overlay">
+        <div class="login-card">
+            <div class="logo" style="justify-content: center; margin-bottom: 20px;">
+                <img data-logo alt="THOUESA Logo" style="height: 40px; display: block; margin: 0 auto;">
+            </div>
+            <h2>دخول الإدارة</h2>
+            <p>يرجى إدخال بيانات الاعتماد للوصول للنظام</p>
+            <form id="admin-login-form">
+                <div style="margin-bottom: 15px; text-align: right;">
+                    <label style="display: block; margin-bottom: 8px; font-size: 14px;">البريد الإلكتروني</label>
+                    <input type="email" id="admin-email" class="fs-input" required placeholder="admin@thouesa.com">
+                </div>
+                <div style="margin-bottom: 25px; text-align: right;">
+                    <label style="display: block; margin-bottom: 8px; font-size: 14px;">كلمة المرور</label>
+                    <input type="password" id="admin-password" class="fs-input" required placeholder="••••••••">
+                </div>
+                <button type="submit" class="btn btn-primary" style="width: 100%; justify-content: center;">دخول النظام</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Sidebar -->
+    <aside class="sidebar hidden" id="admin-sidebar">
+        <a href="/" class="logo">
+            <img data-logo alt="THOUESA Logo" style="height: 30px;">
+            <small>ADMIN</small>
+        </a>
+        <nav class="nav-links">
+            <a href="#" class="nav-link active" data-tab="overview">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
+                <span>الرئيسية</span>
+            </a>
+            <a href="#" class="nav-link" data-tab="users">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+                <span>المستخدمين</span>
+            </a>
+            <a href="#" class="nav-link" data-tab="orders">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path></svg>
+                <span>الشحنات</span>
+            </a>
+            <a href="#" class="nav-link" data-tab="trips">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"></path><path d="M2 17l10 5 10-5"></path><path d="M2 12l10 5 10-5"></path></svg>
+                <span>الرحلات</span>
+            </a>
+            <a href="#" class="nav-link" data-tab="tracking">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
+                <span>التتبع</span>
+            </a>
+            <a href="#" class="nav-link" data-tab="rates">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
+                <span>الأسعار</span>
+            </a>
+            <a href="#" class="nav-link" data-tab="wallet">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"></rect><path d="M7 15h0M2 9.5h20"></path></svg>
+                <span>المحفظة</span>
+            </a>
+            <a href="#" class="nav-link" data-tab="coupons">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 5l-1.76 1.76a2 2 0 0 0 0 2.83l1.76 1.76M9 19l1.76-1.76a2 2 0 0 0 0-2.83L9 12.65"></path><rect x="2" y="5" width="20" height="14" rx="2"></rect><path d="M12 5v14"></path></svg>
+                <span>الكوبونات</span>
+            </a>
+            <a href="#" class="nav-link" data-tab="tickets">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+                <span>التذاكر</span>
+            </a>
+            <a href="#" class="nav-link" data-tab="settings">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+                <span>الإعدادات</span>
+            </a>
+        </nav>
+        <div style="margin-top: auto;">
+            <button id="admin-logout-btn" class="nav-link" style="color: var(--danger); width: 100%; background: none; border: none; cursor: pointer;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+                <span>خروج</span>
+            </button>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content hidden" id="admin-main">
+        <header>
+            <div class="header-title">
+                <h1 id="tab-title">لوحة التحكم</h1>
+                <p id="admin-welcome">مرحباً بك في نظام الإدارة</p>
+            </div>
+            <div class="header-actions">
+                <button class="btn btn-glass" onclick="loadAdminData()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 18px;"><path d="M23 4v6h-6"></path><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>
+                    تحديث
+                </button>
+            </div>
+        </header>
+
+        <!-- Overview Tab -->
+        <div id="tab-overview" class="tab-content active">
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <h3>إجمالي الشحنات</h3>
+                    <div class="value" id="stat-total-orders">0</div>
+                    <div class="trend up"><span>+5%</span> منذ الأسبوع الماضي</div>
+                </div>
+                <div class="stat-card">
+                    <h3>الشحنات المعلقة</h3>
+                    <div class="value" id="stat-pending-orders">0</div>
+                    <div class="trend" style="color: var(--warning);">تحتاج معالجة</div>
+                </div>
+                <div class="stat-card">
+                    <h3>المستخدمين الجدد</h3>
+                    <div class="value" id="stat-total-users">0</div>
+                    <div class="trend up"><span>+12</span> مستخدم جديد</div>
+                </div>
+                <div class="stat-card">
+                    <h3>إجمالي الإيرادات</h3>
+                    <div class="value" id="stat-total-revenue">$0</div>
+                    <div class="trend up">نمو مستمر</div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h2>آخر العمليات</h2>
+                    <button class="btn btn-glass btn-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 18px;"><polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg></button>
+                </div>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>المستخدم</th>
+                                <th>العملية</th>
+                                <th>التفاصيل</th>
+                                <th>التاريخ</th>
+                            </tr>
+                        </thead>
+                        <tbody id="admin-logs-table">
+                            <!-- Logs injected here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Users Tab -->
+        <div id="tab-users" class="tab-content">
+            <div class="card">
+                <div class="card-header">
+                    <h2>إدارة المستخدمين</h2>
+                    <div class="flex" style="gap: 10px;">
+                        <input type="text" class="fs-input" placeholder="بحث عن مستخدم..." style="width: 250px;">
+                    </div>
+                </div>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>المعرف</th>
+                                <th>الاسم</th>
+                                <th>الهاتف</th>
+                                <th>التوثيق</th>
+                                <th>المحفظة</th>
+                                <th>إجراءات</th>
+                            </tr>
+                        </thead>
+                        <tbody id="admin-users-table">
+                            <!-- Users injected here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Orders Tab -->
+        <div id="tab-orders" class="tab-content">
+            <div class="card">
+                <div class="card-header">
+                    <h2>إدارة الشحنات</h2>
+                    <div class="flex" style="gap: 10px;">
+                        <select class="fs-input" style="width: 150px;">
+                            <option value="">كل الحالات</option>
+                            <option value="pending">معلق</option>
+                            <option value="shipped">تم الشحن</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>رقم التسلسل</th>
+                                <th>العميل</th>
+                                <th>النوع</th>
+                                <th>الحالة</th>
+                                <th>السعر النهائي</th>
+                                <th>إجراءات</th>
+                            </tr>
+                        </thead>
+                        <tbody id="admin-orders-table">
+                            <!-- Orders injected here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Trips Tab -->
+        <div id="tab-trips" class="tab-content">
+            <div class="card">
+                <div class="card-header">
+                    <h2>الرحلات المجدولة</h2>
+                    <button class="btn btn-primary" onclick="showModal('modal-add-trip')">إضافة رحلة</button>
+                </div>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>الوجهة</th>
+                                <th>التاريخ</th>
+                                <th>الحالة</th>
+                                <th>إجراءات</th>
+                            </tr>
+                        </thead>
+                        <tbody id="admin-trips-table">
+                            <!-- Trips injected here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tracking Tab -->
+        <div id="tab-tracking" class="tab-content">
+            <div class="card">
+                <div class="card-header">
+                    <h2>أحداث تتبع الشحنات</h2>
+                    <div class="flex" style="gap: 10px;">
+                        <input type="text" id="tracking-search-order" class="fs-input" placeholder="رقم الطلب أو التتبع..." style="width: 250px;">
+                        <button class="btn btn-primary" onclick="loadTrackingEvents()">بحث</button>
+                    </div>
+                </div>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>رقم الشحنة</th>
+                                <th>الحالة</th>
+                                <th>الموقع</th>
+                                <th>الوصف</th>
+                                <th>التاريخ</th>
+                                <th>إجراءات</th>
+                            </tr>
+                        </thead>
+                        <tbody id="admin-tracking-table">
+                            <!-- Tracking events injected here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Rates Tab -->
+        <div id="tab-rates" class="tab-content">
+            <div class="card">
+                <div class="card-header">
+                    <h2>إدارة أسعار الشحن</h2>
+                    <button class="btn btn-primary" onclick="showModal('modal-add-rate')">إضافة سعر جديد</button>
+                </div>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>من</th>
+                                <th>إلى</th>
+                                <th>السعر الأساسي</th>
+                                <th>سعر الكجم</th>
+                                <th>الوزن (من-إلى)</th>
+                                <th>الناقل</th>
+                                <th>إجراءات</th>
+                            </tr>
+                        </thead>
+                        <tbody id="admin-rates-table">
+                            <!-- Rates injected here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Wallet Tab -->
+        <div id="tab-wallet" class="tab-content">
+            <div class="card">
+                <div class="card-header">
+                    <h2>سجل المعاملات المالية</h2>
+                </div>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>المستخدم</th>
+                                <th>المبلغ</th>
+                                <th>النوع</th>
+                                <th>الوصف</th>
+                                <th>التاريخ</th>
+                            </tr>
+                        </thead>
+                        <tbody id="admin-wallet-table">
+                            <!-- Transactions injected here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Coupons Tab -->
+        <div id="tab-coupons" class="tab-content">
+            <div class="card">
+                <div class="card-header">
+                    <h2>إدارة الكوبونات</h2>
+                    <button class="btn btn-primary" onclick="showModal('modal-add-coupon')">إضافة كوبون</button>
+                </div>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>الكود</th>
+                                <th>النوع</th>
+                                <th>القيمة</th>
+                                <th>الاستخدام</th>
+                                <th>تاريخ الانتهاء</th>
+                                <th>الحالة</th>
+                                <th>إجراءات</th>
+                            </tr>
+                        </thead>
+                        <tbody id="admin-coupons-table">
+                            <!-- Coupons injected here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tickets Tab -->
+        <div id="tab-tickets" class="tab-content">
+            <div class="card">
+                <div class="card-header">
+                    <h2>تذاكر الدعم</h2>
+                </div>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>الموضوع</th>
+                                <th>العميل</th>
+                                <th>الحالة</th>
+                                <th>التاريخ</th>
+                                <th>إجراءات</th>
+                            </tr>
+                        </thead>
+                        <tbody id="admin-tickets-table">
+                            <!-- Tickets injected here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Settings Tab -->
+        <div id="tab-settings" class="tab-content">
+            <div class="grid" style="grid-template-columns: 1fr 1fr;">
+                <div class="card">
+                    <h2>إعدادات النظام</h2>
+                    <form id="settings-form" style="margin-top: 20px;">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                            <div style="margin-bottom: 15px;">
+                                <label>اسم الموقع</label>
+                                <input type="text" name="site_name" class="fs-input" placeholder="THOUESA">
+                            </div>
+                            <div style="margin-bottom: 15px;">
+                                <label>رابط الشعار</label>
+                                <div style="display: flex; gap: 10px;">
+                                    <input type="text" name="site_logo" id="settings-logo-url" class="fs-input" placeholder="/web/assets/logo/logo.png">
+                                    <button type="button" class="btn btn-glass" onclick="document.getElementById('settings-logo-upload').click()">📤</button>
+                                    <input type="file" id="settings-logo-upload" class="hidden" onchange="uploadSettingsLogo(this)">
+                                </div>
+                            </div>
+                            <div style="margin-bottom: 15px;">
+                                <label>عنوان الهيرو</label>
+                                <input type="text" name="hero_title" class="fs-input">
+                            </div>
+                            <div style="margin-bottom: 15px;">
+                                <label>شعار الهيرو</label>
+                                <input type="text" name="hero_slogan" class="fs-input">
+                            </div>
+                            <div style="margin-bottom: 15px;">
+                                <label>خلفية الهيرو (Desktop)</label>
+                                <input type="text" name="hero_bg" class="fs-input">
+                            </div>
+                            <div style="margin-bottom: 15px;">
+                                <label>خلفية الهيرو (Mobile)</label>
+                                <input type="text" name="hero_bg_mobile" class="fs-input">
+                            </div>
+                            <div style="margin-bottom: 15px;">
+                                <label>عنوان عن المنصة</label>
+                                <input type="text" name="main_screen_title" class="fs-input">
+                            </div>
+                            <div style="margin-bottom: 15px;">
+                                <label>نسبة التأمين (%)</label>
+                                <input type="number" name="insurance_rate" class="fs-input" step="0.01">
+                            </div>
+                            <div style="margin-bottom: 15px;">
+                                <label>مكافأة الإحالة (JOD)</label>
+                                <input type="number" name="referral_reward_jod" class="fs-input" step="0.01">
+                            </div>
+                            <div style="margin-bottom: 15px;">
+                                <label>نص شريط الأخبار</label>
+                                <input type="text" name="news_text" class="fs-input">
+                            </div>
+                            <div style="margin-bottom: 15px;">
+                                <label>فيسبوك</label>
+                                <input type="text" name="social_facebook" class="fs-input">
+                            </div>
+                            <div style="margin-bottom: 15px;">
+                                <label>واتساب</label>
+                                <input type="text" name="social_whatsapp" class="fs-input">
+                            </div>
+                            <div style="margin-bottom: 15px;">
+                                <label>انستغرام</label>
+                                <input type="text" name="social_instagram" class="fs-input">
+                            </div>
+                            <div style="margin-bottom: 15px;">
+                                <label>تيك توك</label>
+                                <input type="text" name="social_tiktok" class="fs-input">
+                            </div>
+                        </div>
+                        <div style="margin-bottom: 15px;">
+                            <label>وصف عن المنصة</label>
+                            <textarea name="main_screen_description" class="fs-input" style="height: 80px;"></textarea>
+                        </div>
+                        <div style="margin-bottom: 15px;">
+                            <label>نص الفوتر</label>
+                            <input type="text" name="footer_text" class="fs-input">
+                        </div>
+                        <div style="margin-bottom: 15px;">
+                            <label>الشروط والأحكام</label>
+                            <textarea name="terms_conditions" class="fs-input" style="height: 120px;"></textarea>
+                        </div>
+                        <div style="margin-bottom: 15px;">
+                            <label>سياسة الخصوصية</label>
+                            <textarea name="privacy_policy" class="fs-input" style="height: 120px;"></textarea>
+                        </div>
+                        <button type="submit" class="btn btn-primary">حفظ الإعدادات</button>
+                    </form>
+                </div>
+                <div class="card">
+                    <h2>أدوات النظام</h2>
+                    <div style="margin-top: 20px; display: flex; flex-direction: column; gap: 15px;">
+                        <button class="btn btn-glass" onclick="runSystemTests()">تشغيل اختبارات النظام</button>
+                        <button class="btn btn-glass" onclick="generateReport()">توليد تقرير شهري</button>
+                        <button class="btn btn-glass" style="color: var(--danger);" onclick="clearCache()">مسح التخزين المؤقت</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Modals -->
+    <div id="modal-add-trip" class="modal-overlay">
+        <div class="modal">
+            <button class="modal-close" onclick="closeModal('modal-add-trip')">&times;</button>
+            <h2>إضافة رحلة جديدة</h2>
+            <form id="add-trip-form" style="margin-top: 20px;">
+                <div style="margin-bottom: 15px;">
+                    <label>الوجهة</label>
+                    <input type="text" name="trip-destination" id="trip-destination" class="fs-input" required placeholder="مثال: عمان - الأردن">
+                </div>
+                <div style="margin-bottom: 25px;">
+                    <label>التاريخ</label>
+                    <input type="date" name="trip-date" id="trip-date" class="fs-input" required>
+                </div>
+                <button type="submit" class="btn btn-primary" style="width: 100%; justify-content: center;">إضافة الرحلة</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Order Update Modal -->
+    <div id="order-modal" class="modal-overlay">
+        <div class="modal">
+            <button class="modal-close" onclick="closeModal('order-modal')">&times;</button>
+            <h2>تحديث حالة الشحنة</h2>
+            <form id="order-status-form" style="margin-top: 20px;">
+                <div style="margin-bottom: 15px;">
+                    <label>الحالة</label>
+                    <select name="status" id="update-order-status" class="fs-input">
+                        <option value="pending">معلق</option>
+                        <option value="approved">مقبول</option>
+                        <option value="awaiting_payment">بانتظار الدفع</option>
+                        <option value="in_progress">قيد التنفيذ</option>
+                        <option value="completed">مكتمل</option>
+                        <option value="rejected">مرفوض</option>
+                    </select>
+                </div>
+                <div class="grid" style="grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px;">
+                    <div>
+                        <label>رقم التتبع</label>
+                        <input type="text" name="tracking_number" class="fs-input">
+                    </div>
+                    <div>
+                        <label>حالة الدفع</label>
+                        <select name="payment_status" class="fs-input">
+                            <option value="unpaid">غير مدفوع</option>
+                            <option value="paid">مدفوع</option>
+                            <option value="partially_paid">مدفوع جزئياً</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="grid" style="grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px;">
+                    <div>
+                        <label>الوزن (كجم)</label>
+                        <input type="number" name="weight" class="fs-input" step="0.01">
+                    </div>
+                    <div>
+                        <label>نوع الطرد</label>
+                        <input type="text" name="package_type" class="fs-input">
+                    </div>
+                </div>
+                <div class="grid" style="grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 15px;">
+                    <div>
+                        <label>الطول</label>
+                        <input type="number" name="length" class="fs-input" step="0.01">
+                    </div>
+                    <div>
+                        <label>العرض</label>
+                        <input type="number" name="width" class="fs-input" step="0.01">
+                    </div>
+                    <div>
+                        <label>الارتفاع</label>
+                        <input type="number" name="height" class="fs-input" step="0.01">
+                    </div>
+                </div>
+                <div class="grid" style="grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px;">
+                    <div>
+                        <label>الأولوية</label>
+                        <select name="priority" class="fs-input">
+                            <option value="normal">عادي</option>
+                            <option value="express">سريع</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label>تاريخ التوصيل المتوقع</label>
+                        <input type="date" name="estimated_delivery" class="fs-input">
+                    </div>
+                </div>
+                <div class="grid" style="grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px;">
+                    <div>
+                        <label>المستودع</label>
+                        <input type="text" name="warehouse_id" class="fs-input" placeholder="UUID">
+                    </div>
+                    <div>
+                        <label>الموظف المسؤول</label>
+                        <input type="text" name="operator_id" class="fs-input" placeholder="UUID">
+                    </div>
+                </div>
+                <div class="grid" style="grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px;">
+                    <div>
+                        <label>سعر الشحن ($)</label>
+                        <input type="number" name="shipping_fees" class="fs-input" step="0.01">
+                    </div>
+                    <div>
+                        <label>الجمارك ($)</label>
+                        <input type="number" name="customs_fees" class="fs-input" step="0.01">
+                    </div>
+                </div>
+                <div class="grid" style="grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px;">
+                    <div>
+                        <label>التأمين ($)</label>
+                        <input type="number" name="insurance_amount" class="fs-input" step="0.01">
+                    </div>
+                    <div>
+                        <label>التوصيل المحلي ($)</label>
+                        <input type="number" name="local_delivery_fees" class="fs-input" step="0.01">
+                    </div>
+                </div>
+                <div class="grid" style="grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px;">
+                    <div>
+                        <label>قيمة الضريبة ($)</label>
+                        <input type="number" name="tax_value" class="fs-input" step="0.01">
+                    </div>
+                    <div>
+                        <label>السعر النهائي ($)</label>
+                        <input type="number" name="final_price" class="fs-input" step="0.01">
+                    </div>
+                </div>
+                <div style="margin-bottom: 15px;">
+                    <label>ملاحظات / سبب الرفض</label>
+                    <textarea name="reason" class="fs-input" style="height: 80px;"></textarea>
+                </div>
+                <button type="submit" class="btn btn-primary" style="width: 100%; justify-content: center;">تحديث البيانات</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Notification Modal -->
+    <div id="notification-modal" class="modal-overlay">
+        <div class="modal">
+            <button class="modal-close" onclick="closeModal('notification-modal')">&times;</button>
+            <h2>إرسال تنبيه</h2>
+            <form id="notification-form" style="margin-top: 20px;">
+                <input type="hidden" name="user_id" id="notif-user-id">
+                <div style="margin-bottom: 15px;">
+                    <label>العنوان</label>
+                    <input type="text" name="title" class="fs-input" required placeholder="مثال: تحديث في حالة الشحنة">
+                </div>
+                <div style="margin-bottom: 15px;">
+                    <label>الرسالة</label>
+                    <textarea name="message" class="fs-input" style="height: 100px;" required></textarea>
+                </div>
+                <div style="margin-bottom: 20px; display: flex; align-items: center; gap: 10px;">
+                    <input type="checkbox" name="broadcast" id="notif-broadcast">
+                    <label for="notif-broadcast">إرسال للجميع (Broadcast)</label>
+                </div>
+                <button type="submit" class="btn btn-primary" style="width: 100%; justify-content: center;">إرسال الآن</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Add Rate Modal -->
+    <div id="modal-add-rate" class="modal-overlay">
+        <div class="modal">
+            <button class="modal-close" onclick="closeModal('modal-add-rate')">&times;</button>
+            <h2>إضافة سعر شحن جديد</h2>
+            <form id="add-rate-form" style="margin-top: 20px;">
+                <div class="grid" style="grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px;">
+                    <div>
+                        <label>بلد المنشأ</label>
+                        <input type="text" name="origin_country" class="fs-input" required placeholder="مثال: Jordan">
+                    </div>
+                    <div>
+                        <label>بلد الوجهة</label>
+                        <input type="text" name="destination_country" class="fs-input" required placeholder="مثال: Algeria">
+                    </div>
+                </div>
+                <div class="grid" style="grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px;">
+                    <div>
+                        <label>السعر الأساسي ($)</label>
+                        <input type="number" name="base_price" class="fs-input" step="0.01" required>
+                    </div>
+                    <div>
+                        <label>السعر لكل كجم ($)</label>
+                        <input type="number" name="price_per_kg" class="fs-input" step="0.01" required>
+                    </div>
+                </div>
+                <div class="grid" style="grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px;">
+                    <div>
+                        <label>الحد الأدنى للوزن</label>
+                        <input type="number" name="min_weight" class="fs-input" step="0.01" value="0">
+                    </div>
+                    <div>
+                        <label>الحد الأقصى للوزن</label>
+                        <input type="number" name="max_weight" class="fs-input" step="0.01" value="9999">
+                    </div>
+                </div>
+                <div style="margin-bottom: 25px;">
+                    <label>الناقل (اختياري)</label>
+                    <select name="carrier_id" id="rate-carrier-select" class="fs-input">
+                        <option value="">اختر الناقل...</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn btn-primary" style="width: 100%; justify-content: center;">حفظ السعر</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Add Coupon Modal -->
+    <div id="modal-add-coupon" class="modal-overlay">
+        <div class="modal">
+            <button class="modal-close" onclick="closeModal('modal-add-coupon')">&times;</button>
+            <h2>إضافة كوبون جديد</h2>
+            <form id="add-coupon-form" style="margin-top: 20px;">
+                <div style="margin-bottom: 15px;">
+                    <label>كود الكوبون</label>
+                    <input type="text" name="code" class="fs-input" required placeholder="مثال: SAVE20">
+                </div>
+                <div class="grid" style="grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px;">
+                    <div>
+                        <label>النوع</label>
+                        <select name="discount_type" class="fs-input" required>
+                            <option value="percent">نسبة مئوية (%)</option>
+                            <option value="fixed">مبلغ ثابت ($)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label>القيمة</label>
+                        <input type="number" name="discount_value" class="fs-input" step="0.01" required>
+                    </div>
+                </div>
+                <div class="grid" style="grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px;">
+                    <div>
+                        <label>تاريخ الانتهاء</label>
+                        <input type="date" name="expires_at" class="fs-input">
+                    </div>
+                    <div>
+                        <label>أقصى عدد استخدامات</label>
+                        <input type="number" name="max_uses" class="fs-input" value="100">
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-primary" style="width: 100%; justify-content: center;">حفظ الكوبون</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Add Tracking Event Modal -->
+    <div id="modal-add-tracking" class="modal-overlay">
+        <div class="modal">
+            <button class="modal-close" onclick="closeModal('modal-add-tracking')">&times;</button>
+            <h2>إضافة حدث تتبع</h2>
+            <form id="add-tracking-form" style="margin-top: 20px;">
+                <input type="hidden" name="order_id" id="tracking-order-id">
+                <div style="margin-bottom: 15px;">
+                    <label>الحالة</label>
+                    <select name="status" class="fs-input" required>
+                        <option value="ARRIVED_WAREHOUSE">وصل للمستودع</option>
+                        <option value="IN_TRANSIT">في الطريق</option>
+                        <option value="IN_CUSTOMS">في الجمارك</option>
+                        <option value="OUT_FOR_DELIVERY">خرج للتوصيل</option>
+                        <option value="DELIVERED">تم التوصيل</option>
+                        <option value="RETURNED">تم الإرجاع</option>
+                    </select>
+                </div>
+                <div style="margin-bottom: 15px;">
+                    <label>الموقع</label>
+                    <input type="text" name="location" class="fs-input" placeholder="مثال: مستودع عمان">
+                </div>
+                <div style="margin-bottom: 25px;">
+                    <label>الوصف (بالعربي)</label>
+                    <textarea name="description" class="fs-input" style="height: 80px;"></textarea>
+                </div>
+                <button type="submit" class="btn btn-primary" style="width: 100%; justify-content: center;">إضافة الحدث</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- User Details Modal -->
+    <div id="user-details-modal" class="modal-overlay">
+        <div class="modal" style="max-width: 800px;">
+            <button class="modal-close" onclick="closeModal('user-details-modal')">&times;</button>
+            <h2>تفاصيل المستخدم</h2>
+            <div id="user-details-content" style="margin-top: 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                <!-- Content injected by JS -->
+            </div>
+            <div style="margin-top: 30px; display: flex; gap: 10px;">
+                <button class="btn btn-glass" id="btn-suspend-user">تعليق الحساب</button>
+                <button class="btn btn-glass" id="btn-verify-user">توثيق الحساب</button>
+                <button class="btn btn-glass" style="color: var(--danger);" id="btn-delete-user">حذف المستخدم</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { SITE_CONFIG } from '/web/config/siteConfig.js';
+        document.querySelectorAll('img[data-logo]').forEach(img => {
+            img.src = SITE_CONFIG.logo;
+        });
+    </script>
+    <script type="module" src="/web/js/site-init.js"></script>
+    <script src="/web/js/admin.js"></script>
+    <script>
+        function showModal(id) { document.getElementById(id).style.display = 'flex'; }
+        function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+    </script>
+</body>
+</html>
