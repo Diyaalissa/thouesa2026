@@ -54,23 +54,27 @@ exports.register = async (req, res, next) => {
 
     res.cookie('token', accessToken, {
       httpOnly: true,
-      secure: true,
+      secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
       path: '/',
       maxAge: 24 * 60 * 60 * 1000
     });
 
     res.status(201).json({
+      status: 'success',
       message: 'تم التسجيل بنجاح',
-      user: { 
-        id: user.id, 
-        name: user.full_name, 
-        email: user.email, 
-        role: user.role,
-        phone: user.phone
-      },
-      token: accessToken,
-      refreshToken
+      data: {
+        user: { 
+          id: user.id, 
+          name: user.full_name,
+          full_name: user.full_name,
+          email: user.email, 
+          role: user.role,
+          phone: user.phone
+        },
+        token: accessToken,
+        refreshToken
+      }
     });
   } catch (error) {
     logger.error(error);
@@ -131,23 +135,27 @@ exports.login = async (req, res, next) => {
 
     res.cookie('token', accessToken, {
       httpOnly: true,
-      secure: true,
+      secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
       path: '/',
       maxAge: 24 * 60 * 60 * 1000
     });
 
     res.json({
+      status: 'success',
       message: 'تم تسجيل الدخول بنجاح',
-      user: {
-        id: user.id,
-        name: user.full_name,
-        email: user.email,
-        role: user.role,
-        phone: user.phone
-      },
-      token: accessToken,
-      refreshToken
+      data: {
+        user: {
+          id: user.id,
+          name: user.full_name,
+          full_name: user.full_name,
+          email: user.email,
+          role: user.role,
+          phone: user.phone
+        },
+        token: accessToken,
+        refreshToken
+      }
     });
 
   } catch (error) {
@@ -169,7 +177,14 @@ exports.refreshToken = async (req, res, next) => {
     const result = await authService.refreshAccessToken(refreshToken, clientInfo);
     if (!result) return res.status(401).json({ message: 'Invalid or expired refresh token' });
 
-    res.json(result);
+    res.json({
+      status: 'success',
+      message: 'Token refreshed',
+      data: {
+        token: result.accessToken,
+        refreshToken: result.refreshToken
+      }
+    });
   } catch (error) {
     logger.error(error);
     next(error);
@@ -178,9 +193,13 @@ exports.refreshToken = async (req, res, next) => {
 
 exports.logout = async (req, res, next) => {
   try {
-    // req.user might be available if authenticated
+    const { refreshToken } = req.body;
     if (req.user && req.user.id) {
-      await query('DELETE FROM refresh_tokens WHERE user_id = ?', [req.user.id]);
+      if (refreshToken) {
+        await query('DELETE FROM refresh_tokens WHERE user_id = ? AND token = ?', [req.user.id, refreshToken]);
+      } else {
+        await query('DELETE FROM refresh_tokens WHERE user_id = ?', [req.user.id]);
+      }
     }
     res.clearCookie('token', {
       httpOnly: true,
@@ -188,7 +207,11 @@ exports.logout = async (req, res, next) => {
       sameSite: 'lax',
       path: '/'
     });
-    res.json({ message: 'تم تسجيل الخروج بنجاح' });
+    res.json({
+      status: 'success',
+      message: 'تم تسجيل الخروج بنجاح',
+      data: null
+    });
   } catch (error) {
     logger.error(error);
     next(error);
@@ -204,11 +227,12 @@ exports.getMe = async (req, res, next) => {
     // Format response to match expected user object structure
     const user = results[0];
     res.json({
-      id: user.id,
-      name: user.full_name,
-      email: user.email,
-      role: user.role,
-      phone: user.phone
+      status: 'success',
+      message: '',
+      data: {
+        ...user,
+        name: user.full_name
+      }
     });
   } catch (error) {
     logger.error(error);

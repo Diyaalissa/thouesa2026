@@ -1,5 +1,6 @@
 const notificationService = require('../services/notificationService.js');
 const appConfig = require('../config/appConfig.js');
+const logger = require('../utils/logger.js');
 
 exports.getMyNotifications = async (req, res, next) => {
     try {

@@ -14,6 +14,12 @@ exports.createShipment = async (shipmentData) => {
         throw new Error("Missing shipment fields");
     }
 
+    // Security: Verify address ownership
+    const [address] = await query('SELECT id FROM addresses WHERE id = ? AND user_id = ?', [address_id, user_id]);
+    if (!address) {
+        throw new Error("Invalid address ID or address does not belong to user");
+    }
+
     const id = uuidv4();
     const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
     const randomStr = Math.random().toString(36).substring(2, 6).toUpperCase();
@@ -69,6 +75,17 @@ exports.createShipment = async (shipmentData) => {
         }
 
         await connection.commit();
+
+        // Link product image to files table if exists
+        if (product_image_url) {
+            try {
+                await query('UPDATE files SET order_id = ? WHERE file_url = ? AND user_id = ? AND order_id IS NULL',
+                    [id, product_image_url, user_id]);
+            } catch (e) {
+                console.error('Error linking file to order:', e);
+            }
+        }
+
         return { id, serial_number };
     } catch (error) {
         await connection.rollback();
@@ -96,12 +113,13 @@ exports.getAllShipments = async (limit = 10, offset = 0) => {
 };
 
 const ALLOWED_TRANSITIONS = {
-    'pending': ['approved', 'rejected', 'awaiting_payment'],
-    'approved': ['in_progress', 'rejected', 'awaiting_payment'],
-    'awaiting_payment': ['approved', 'in_progress', 'rejected'],
+    'pending': ['approved', 'rejected', 'awaiting_payment', 'cancelled'],
+    'approved': ['in_progress', 'rejected', 'awaiting_payment', 'cancelled'],
+    'awaiting_payment': ['approved', 'in_progress', 'rejected', 'cancelled'],
     'in_progress': ['completed', 'rejected'],
     'rejected': [],
-    'completed': []
+    'completed': [],
+    'cancelled': []
 };
 
 exports.updateShipment = async (id, updateData, changedByUserId = null) => {
@@ -123,6 +141,7 @@ exports.updateShipment = async (id, updateData, changedByUserId = null) => {
         'tax_value',
         'final_price',
         'rejection_reason',
+        'cancellation_reason',
         'weight',
         'length',
         'width',
@@ -148,6 +167,13 @@ exports.updateShipment = async (id, updateData, changedByUserId = null) => {
             }
             
             fields.push(`${key} = ?`);
+            // Ensure items are stringified if they are an object
+            if (key === 'items' && typeof value === 'object') {
+                values.push(JSON.stringify(value));
+            } else {
+                values.push(value);
+            }
+
             if (key === 'status') {
                 newStatus = value;
                 // Set timestamps based on status
@@ -176,13 +202,6 @@ exports.updateShipment = async (id, updateData, changedByUserId = null) => {
                     fields.push('volumetric_weight = ?');
                     values.push(volWeight);
                 }
-            }
-
-            // Ensure items are stringified if they are an object
-            if (key === 'items' && typeof value === 'object') {
-                values.push(JSON.stringify(value));
-            } else {
-                values.push(value);
             }
         }
     }
@@ -225,9 +244,10 @@ exports.updateShipment = async (id, updateData, changedByUserId = null) => {
         const deductionPrice = currentFinalPrice;
         
         fields.push('version = version + 1');
+        
+        const sql = `UPDATE orders SET ${fields.join(', ')} WHERE id = ? AND version = ?`;
         values.push(id);
         values.push(currentVersion);
-        const sql = `UPDATE orders SET ${fields.join(', ')} WHERE id = ? AND version = ?`;
         const [updateResult] = await connection.query(sql, values);
         
         if (updateResult.affectedRows === 0) {
@@ -258,7 +278,7 @@ exports.updateShipment = async (id, updateData, changedByUserId = null) => {
         // 3. If status changed, record in history and handle side effects
         if (newStatus) {
             const historyId = uuidv4();
-            const statusNotes = updateData.rejection_reason || `Status changed to ${newStatus}`;
+            const statusNotes = updateData.rejection_reason || updateData.cancellation_reason || `Status changed to ${newStatus}`;
             await connection.query(
                 'INSERT INTO order_status_history (id, order_id, status, changed_by, notes) VALUES (?, ?, ?, ?, ?)',
                 [historyId, id, newStatus, changedByUserId, statusNotes]
@@ -284,6 +304,13 @@ exports.updateShipment = async (id, updateData, changedByUserId = null) => {
                     'INSERT INTO transactions (id, user_id, amount, balance_before, balance_after, type, description, reference_id, reference_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
                     [tid, orderUserId, -deductionPrice, balanceBefore, balanceAfter, 'payment', `Payment for order ${id}`, id, 'order']
                 );
+
+                // Also record in payments table
+                const pid = uuidv4();
+                await connection.query(
+                    'INSERT INTO payments (id, user_id, shipment_id, amount, method, status) VALUES (?, ?, ?, ?, ?, ?)',
+                    [pid, orderUserId, id, deductionPrice, 'wallet', 'completed']
+                );
             }
         }
         
@@ -291,8 +318,6 @@ exports.updateShipment = async (id, updateData, changedByUserId = null) => {
         const afterState = { ...afterOrder };
 
         await connection.commit();
-
-        return { before: beforeState, after: afterState, orderUserId };
 
         // 5. Create Notification (Outside transaction as it's non-critical)
         if (newStatus) {
@@ -308,6 +333,8 @@ exports.updateShipment = async (id, updateData, changedByUserId = null) => {
                 // Don't throw, as the main transaction succeeded
             }
         }
+
+        return { before: beforeState, after: afterState, orderUserId };
     } catch (error) {
         await connection.rollback();
         throw error;

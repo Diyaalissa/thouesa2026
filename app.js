@@ -1,53 +1,54 @@
 require('dotenv').config()
-const compression = require('compression')
 
 const app = require('./src/app.cjs')
 const { initDatabase } = require('./src/utils/initDb.js')
 
-app.use(compression())
-
 const PORT = process.env.PORT || 3000
 
-// Initialize Database before starting server
-initDatabase().then(() => {
-  console.log('📦 Database Schema Verified')
-}).catch(err => {
-  console.error('❌ Failed to initialize database (Server will still start, but DB features will fail):', err.message);
-});
+let serverInstance;
 
-const server = app.listen(PORT, '0.0.0.0', () => {
-  console.log('🚀 THOUESA API is LIVE on port ' + PORT)
-  console.log('🔒 CSP Manual Config Applied')
-})
-
-// Graceful Shutdown
 const shutdown = (signal) => {
   console.log(`🛑 Received ${signal}, shutting down gracefully`);
   
-  // 1. Stop accepting new connections
-  server.close(async () => {
-    console.log('Closed out remaining connections');
-    try {
-      // 2. Close database pool
-      const { pool } = require('./src/db.cjs');
-      await pool.end();
-      console.log('Database pool closed');
-      process.exit(0);
-    } catch (err) {
-      console.error('Error during database pool closure:', err);
-      process.exit(1);
-    }
-  });
+  if (serverInstance) {
+    serverInstance.close(async () => {
+      console.log('Closed out remaining connections');
+      try {
+        const { pool } = require('./src/db.cjs');
+        await pool.end();
+        console.log('Database pool closed');
+        process.exit(0);
+      } catch (err) {
+        console.error('Error during database pool closure:', err);
+        process.exit(1);
+      }
+    });
+  } else {
+    process.exit(0);
+  }
 
-  // Force close after 10s
   setTimeout(() => {
     console.error('Could not close connections in time, forcefully shutting down');
     process.exit(1);
   }, 10000);
 };
 
-process.on('SIGTERM', () => shutdown('SIGTERM'));
-process.on('SIGINT', () => shutdown('SIGINT'));
+// Initialize Database before starting server
+initDatabase().then(() => {
+  console.log('📦 Database Schema Verified')
+  
+  serverInstance = app.listen(PORT, '0.0.0.0', () => {
+    console.log('🚀 THOUESA API is LIVE on port ' + PORT)
+    console.log('🔒 CSP Manual Config Applied')
+  })
+
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('SIGINT', () => shutdown('SIGINT'));
+
+}).catch(err => {
+  console.error('❌ CRITICAL: Failed to initialize database. Server will NOT start:', err.message);
+  process.exit(1);
+});
 
 process.on('unhandledRejection', (reason, promise) => {
   console.error('Unhandled Rejection at:', promise, 'reason:', reason);

@@ -8,7 +8,7 @@ const csrf = require('csurf');
 const rateLimit = require('express-rate-limit');
 const logger = require('./utils/logger.js');
 const sanitizeHtml = require('sanitize-html');
-const multer = require('multer');
+const upload = require('./middleware/uploadMiddleware.js');
 const os = require('os');
 const NodeCache = require('node-cache');
 const { v4: uuidv4 } = require('uuid');
@@ -26,33 +26,6 @@ app.use((req, res, next) => {
 
 const appCache = new NodeCache({ stdTTL: 600 });
 
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, 'uploads/');
-  },
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname).toLowerCase();
-    cb(null, uuidv4() + ext);
-  }
-});
-
-const upload = multer({ 
-  storage: storage,
-  limits: { fileSize: 5 * 1024 * 1024 },
-  fileFilter: (req, file, cb) => {
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
-    const allowedExts = ['.jpg', '.jpeg', '.png', '.webp'];
-    const ext = path.extname(file.originalname).toLowerCase();
-    
-    if (!allowedTypes.includes(file.mimetype) || !allowedExts.includes(ext)) {
-      const error = new Error('Invalid file type. Only JPEG, PNG, and WebP are allowed.');
-      error.status = 400;
-      return cb(error, false);
-    }
-    cb(null, true);
-  }
-});
-
 // XSS Sanitation Middleware
 const sanitizeMiddleware = (req, res, next) => {
   if (req.body) {
@@ -67,8 +40,10 @@ const sanitizeMiddleware = (req, res, next) => {
 
 // Trust proxy for express-rate-limit
 // In production, specify the IP range of your proxy (e.g., Cloudflare)
-// For now, we trust the first hop
-app.set('trust proxy', 1);
+// For now, we trust the first hop if configured
+if (process.env.TRUST_PROXY === 'true' || process.env.TRUST_PROXY === '1') {
+  app.set('trust proxy', 1);
+}
 
 // Security Headers
 app.use(helmet({
@@ -138,7 +113,7 @@ app.use((req, res, next) => {
 
 // Middleware
 app.use(cors({
-  origin: process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : '*',
+  origin: process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',').map(v => v.trim()) : [],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-CSRF-Token'],
@@ -157,8 +132,7 @@ app.get('/api/health', async (req, res) => {
     res.json({ status: "ok", database: "connected", timestamp: new Date().toISOString() });
   } catch (error) {
     logger.error('Health Check Failure (DB down, but server is up):', error.message);
-    // Return 200 so the load balancer doesn't kill the container
-    res.status(200).json({ status: "ok", database: "down", timestamp: new Date().toISOString() });
+    res.status(503).json({ status: "error", database: "down", timestamp: new Date().toISOString() });
   }
 });
 
@@ -205,8 +179,10 @@ app.get('/api/metrics', async (req, res) => {
   });
 });
 
+const { authenticate, authorize } = require('./middleware/authMiddleware.js');
+
 // Server Info / Monitoring
-app.get('/api/server-info', (req, res) => {
+app.get('/api/server-info', authenticate, authorize(['admin']), (req, res) => {
   res.json({
     uptime: process.uptime(),
     memoryUsage: process.memoryUsage(),
@@ -224,7 +200,41 @@ app.get('/api/server-info', (req, res) => {
 
 // Static Files (No CSRF)
 app.use('/web', express.static(path.join(__dirname, '../web')));
-app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+
+// Protected Uploads
+app.get('/uploads/:filename', authenticate, async (req, res) => {
+  const filename = req.params.filename;
+  if (filename.includes('..') || filename.includes('/')) {
+    return res.status(400).json({ message: 'Invalid filename' });
+  }
+  
+  const fileUrl = '/uploads/' + filename;
+  const { pool } = require('./db.cjs');
+  try {
+    const [files] = await pool.query('SELECT user_id FROM files WHERE file_url = ?', [fileUrl]);
+    if (files.length > 0) {
+      const file = files[0];
+      if (file.user_id !== req.user.id && req.user.role !== 'admin') {
+        return res.status(403).json({ message: 'Forbidden' });
+      }
+    } else {
+      // If file not in DB, only admin can access or we deny.
+      // For safety, let's deny if not admin.
+      if (req.user.role !== 'admin') {
+        return res.status(403).json({ message: 'Forbidden' });
+      }
+    }
+    
+    const filePath = path.join(__dirname, '../uploads', filename);
+    res.sendFile(filePath, (err) => {
+      if (err) {
+        res.status(404).json({ message: 'File not found' });
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error' });
+  }
+});
 
 // Dashboard Routes (No CSRF)
 app.get('/client', (req, res) => res.sendFile(path.join(__dirname, '../web/client.html')));
@@ -232,10 +242,11 @@ app.get('/gate77', (req, res) => res.sendFile(path.join(__dirname, '../web/gate7
 app.get('/status', (req, res) => res.sendFile(path.join(__dirname, '../web/status.html')));
 
 // CSRF Protection
+const isSecure = process.env.NODE_ENV === 'production';
 const csrfProtection = csrf({ 
   cookie: {
     httpOnly: true,
-    secure: true,
+    secure: isSecure,
     sameSite: 'lax',
     path: '/'
   }
@@ -245,11 +256,15 @@ app.get('/api/csrf-token', csrfProtection, (req, res) => {
   const token = req.csrfToken();
   res.cookie('XSRF-TOKEN', token, {
     httpOnly: false, // Must be accessible by frontend
-    secure: true,
+    secure: isSecure,
     sameSite: 'lax',
     path: '/'
   });
-  res.json({ csrfToken: token });
+  res.json({ 
+    status: 'success',
+    message: '',
+    data: { token } 
+  });
 });
 
 // API Routes
@@ -261,9 +276,8 @@ const adminRoutes = require('./routes/adminRoutes.js');
 app.use('/api/auth', csrfProtection, authRoutes);
 app.use('/api/v1', csrfProtection, portalRoutes);
 app.use('/api/v1/admin/portal', csrfProtection, adminRoutes);
-app.use('/api/v1/debug', adminRoutes); // Debug routes usually don't need CSRF in dev
 
-app.post('/api/v1/upload', upload.single('file'), require('./controllers/uploadController.js').uploadFile);
+app.post('/api/v1/upload', authenticate, upload.single('file'), require('./controllers/uploadController.js').uploadFile);
 
 // Cleanup expired refresh tokens every 24 hours
 setInterval(async () => {
@@ -287,19 +301,22 @@ app.use((err, req, res, next) => {
   const status = err.status || err.statusCode || 500;
   const message = err.message || 'Internal server error';
   
-  // Hide stack traces in production
-  const stack = process.env.NODE_ENV === 'production' ? undefined : err.stack;
-  
-  logger.error(`${status} - ${message} - ${req.originalUrl} - ${req.method} - ${req.ip}`, { stack });
+  // Log the error
+  logger.error(`${status} - ${message} - ${req.originalUrl} - ${req.method} - ${req.ip}`, { 
+    stack: process.env.NODE_ENV === 'production' ? undefined : err.stack 
+  });
   
   if (err.code === 'EBADCSRFTOKEN') {
-    return res.status(403).json({ message: 'Invalid CSRF token' });
+    return res.status(403).json({ 
+      status: 'error',
+      message: 'Invalid CSRF token' 
+    });
   }
 
+  // Return the real error message to the client as requested
   res.status(status).json({
-    status: 'error',
-    message: message,
-    stack: stack
+    message: message || 'Internal server error',
+    status: 'error'
   });
 });
 

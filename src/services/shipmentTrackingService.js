@@ -34,16 +34,14 @@ class ShipmentTrackingService {
     // Update order status based on tracking event if applicable
     const statusMap = {
       'DELIVERED': 'completed',
-      'CANCELLED': 'rejected' // or 'cancelled' if we added it
+      'CANCELLED': 'cancelled'
     };
 
     if (statusMap[status]) {
-      const updateFields = { status: statusMap[status] };
-      if (status === 'DELIVERED') updateFields.delivered_at = new Date();
-      if (status === 'CANCELLED') updateFields.cancelled_at = new Date();
-      
-      const setClause = Object.keys(updateFields).map(k => `${k} = ?`).join(', ');
-      await query(`UPDATE orders SET ${setClause} WHERE id = ?`, [...Object.values(updateFields), orderId]);
+      const shipmentService = require('./shipmentService');
+      const updateData = { status: statusMap[status] };
+      if (status === 'CANCELLED') updateData.cancellation_reason = description;
+      await shipmentService.updateShipment(orderId, updateData, createdBy);
     }
 
     return id;

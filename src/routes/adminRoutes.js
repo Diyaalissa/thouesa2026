@@ -36,11 +36,35 @@ router.delete('/trips/:id', adminController.deleteTrip);
 router.get('/monthly-report', adminController.getMonthlyReport);
 router.get('/tickets', adminController.getTickets);
 router.post('/tickets/:id/reply', adminController.replyTicket);
+router.get('/payments', adminController.getPayments);
 router.get('/transactions', adminController.getTransactions);
 router.get('/coupons', adminController.getCoupons);
 router.post('/coupons', authorize(['admin']), adminController.addCoupon);
 router.delete('/coupons/:id', authorize(['admin']), adminController.deleteCoupon);
 router.post('/users/:id/wallet', authorize(['admin']), adminController.adjustWallet);
+
+// Reviews
+router.get('/reviews', adminController.getReviews);
+router.post('/reviews/:id/status', adminController.updateReviewStatus);
+router.delete('/reviews/:id', adminController.deleteReview);
+
+// Carriers
+router.get('/carriers', adminController.getCarriers);
+router.post('/carriers', adminController.addCarrier);
+router.put('/carriers/:id', adminController.updateCarrier);
+router.delete('/carriers/:id', adminController.deleteCarrier);
+
+// Warehouses
+router.get('/warehouses', adminController.getWarehouses);
+router.post('/warehouses', adminController.addWarehouse);
+router.put('/warehouses/:id', adminController.updateWarehouse);
+router.delete('/warehouses/:id', adminController.deleteWarehouse);
+
+// Notifications
+router.get('/notifications/all', adminController.getNotifications);
+
+// Files
+router.get('/files', adminController.getFiles);
 
 // Tracking Events
 router.get('/tracking', adminController.getTrackingEvents);
@@ -53,6 +77,5 @@ router.post('/rates', authorize(['admin']), adminController.addShippingRate);
 router.put('/rates/:id', authorize(['admin']), adminController.updateShippingRate);
 router.delete('/rates/:id', authorize(['admin']), adminController.deleteShippingRate);
 
-router.get('/debug/run-tests', adminController.runTests);
 
 module.exports = router;

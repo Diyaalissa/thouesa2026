@@ -1,20 +1,33 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# THOUESA Logistics Platform
 
-# Run and deploy your AI Studio app
+## Overview
+THOUESA is a logistics and shipping platform between Algeria and Jordan. This project uses Node.js, Express, and MySQL.
 
-This contains everything you need to run your app locally.
+## Prerequisites
+- Node.js 18+
+- MySQL 8.0+
 
-View your app in AI Studio: https://ai.studio/apps/77027969-70c4-42f9-b4a9-fd220278898b
+## Setup
+1. Clone the repository.
+2. Run `npm install` to install dependencies.
+3. Copy `.env.example` to `.env` and fill in the required values.
+4. Ensure the MySQL database is running and accessible.
 
-## Run Locally
+## Scripts
+- `npm run dev`: Start the development server with nodemon.
+- `npm start`: Start the production server.
+- `npm run build`: Run diagnostic checks and linting.
+- `npm run lint`: Run ESLint to check for code issues.
+- `npm run doctor`: Run system diagnostics to ensure environment is configured correctly.
+- `npm run seed:admin`: Create the default admin user based on `.env` credentials.
 
-**Prerequisites:**  Node.js
+## Deployment
+1. Set `NODE_ENV=production` in your environment.
+2. Run `npm run build` to verify the environment.
+3. Run `npm start` to start the application.
 
-
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+## Security
+- The application uses JWT for authentication with refresh token rotation.
+- CSRF protection is enabled for state-changing API routes.
+- Rate limiting is applied to authentication endpoints.
+- Uploaded files are protected and require authentication to access.

@@ -4,30 +4,32 @@
   "main": "app.js",
   "scripts": {
     "start": "node app.js",
-    "dev": "node app.js",
-    "lint": "ls -R src",
-    "build": "echo 'No build step required for this project'"
+    "db:init": "node src/utils/initDb.js",
+    "doctor": "node scripts/doctor.js",
+    "lint": "npx eslint src/**/*.js src/**/*.cjs web/js/*.js scripts/*.js app.js",
+    "build": "npm run doctor && npm run lint"
   },
   "dependencies": {
-    "express": "^4.21.2",
-    "mysql2": "^3.19.1",
-    "dotenv": "^17.2.3",
-    "cors": "^2.8.6",
-    "helmet": "^8.1.0",
-    "uuid": "^13.0.0",
     "bcryptjs": "^3.0.3",
-    "jsonwebtoken": "^9.0.3",
-    "zod": "^4.3.6",
-    "winston": "^3.19.0",
-    "cookie-parser": "^1.4.7",
-    "csurf": "^1.11.0",
-    "express-rate-limit": "^8.3.1",
     "compression": "^1.8.1",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.6",
+    "csurf": "^1.11.0",
+    "dotenv": "^17.2.3",
+    "express": "^4.21.2",
+    "express-rate-limit": "^8.3.1",
+    "helmet": "^8.1.0",
+    "jsonwebtoken": "^9.0.3",
     "multer": "^2.1.1",
+    "mysql2": "^3.19.1",
     "node-cache": "^5.1.2",
-    "node-cron": "^3.0.3",
-    "nodemailer": "^6.10.1",
     "sanitize-html": "^2.17.1",
-    "sharp": "^0.33.5"
+    "uuid": "^11.0.0",
+    "winston": "^3.19.0",
+    "winston-daily-rotate-file": "^5.0.0",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "eslint": "^10.0.3"
   }
 }

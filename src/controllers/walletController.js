@@ -1,5 +1,6 @@
 const walletService = require('../services/walletService.js');
 const appConfig = require('../config/appConfig.js');
+const logger = require('../utils/logger.js');
 
 exports.getMyBalance = async (req, res, next) => {
     try {

@@ -1,4 +1,7 @@
 // Admin Dashboard Logic
+window.showModal = function(id) { document.getElementById(id).style.display = 'flex'; };
+window.closeModal = function(id) { document.getElementById(id).style.display = 'none'; };
+
 const adminAuthOverlay = document.getElementById('admin-auth-overlay');
 const adminSidebar = document.getElementById('admin-sidebar');
 const adminMain = document.getElementById('admin-main');
@@ -8,20 +11,75 @@ const adminLogoutBtn = document.getElementById('admin-logout-btn');
 // State
 let currentAdmin = null;
 let csrfToken = '';
+let allOrders = [];
 
 async function fetchCsrfToken() {
     try {
         const response = await fetch('/api/csrf-token', { credentials: 'include' });
-        const data = await response.json();
-        csrfToken = data.csrfToken;
+        const json = await response.json();
+        csrfToken = json.data.token;
     } catch (error) {
         console.error('Failed to fetch CSRF token:', error);
     }
 }
 
+async function fetchWithAuth(url, options = {}) {
+    let currentToken = localStorage.getItem('adminToken');
+    if (!options.headers) options.headers = {};
+    if (currentToken) options.headers['Authorization'] = `Bearer ${currentToken}`;
+    
+    let response = await fetch(url, options);
+    
+    if (response.status === 401) {
+        const refreshToken = localStorage.getItem('refreshToken');
+        if (refreshToken) {
+            try {
+                const refreshRes = await fetch('/api/auth/refresh-token', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-Token': csrfToken
+                    },
+                    body: JSON.stringify({ refreshToken })
+                });
+                
+                if (refreshRes.ok) {
+                    const refreshData = await refreshRes.json();
+                    currentToken = refreshData.data.token;
+                    localStorage.setItem('adminToken', currentToken);
+                    localStorage.setItem('token', currentToken);
+                    if (refreshData.data.refreshToken) {
+                        localStorage.setItem('refreshToken', refreshData.data.refreshToken);
+                    }
+                    
+                    options.headers['Authorization'] = `Bearer ${currentToken}`;
+                    response = await fetch(url, options);
+                } else {
+                    localStorage.removeItem('adminToken');
+                    showAdminAuth();
+                }
+            } catch (err) {
+                console.error('Refresh token error:', err);
+                localStorage.removeItem('adminToken');
+                showAdminAuth();
+            }
+        } else {
+            localStorage.removeItem('adminToken');
+            showAdminAuth();
+        }
+    }
+    return response;
+}
+
 // Check Admin Auth
 const checkAdminAuth = async () => {
-    const token = localStorage.getItem('adminToken');
+    let token = localStorage.getItem('adminToken');
+    if (!token) {
+        token = localStorage.getItem('token');
+        if (token) {
+            localStorage.setItem('adminToken', token);
+        }
+    }
     if (!token) {
         showAdminAuth();
         return;
@@ -32,7 +90,8 @@ const checkAdminAuth = async () => {
             headers: { 'Authorization': `Bearer ${token}` }
         });
         if (response.ok) {
-            const user = await response.json();
+            const json = await response.json();
+            const user = json.data;
             if (user.role === 'admin' || user.role === 'operator') {
                 showAdminDashboard(user);
             } else {
@@ -82,10 +141,14 @@ adminLoginForm.addEventListener('submit', async (e) => {
             body: JSON.stringify({ email, password })
         });
 
-        const data = await response.json();
+        const json = await response.json();
+        const data = json.data;
         if (response.ok) {
             if (data.user.role === 'admin' || data.user.role === 'operator') {
                 localStorage.setItem('adminToken', data.token);
+                if (data.refreshToken) {
+                    localStorage.setItem('refreshToken', data.refreshToken);
+                }
                 showAdminDashboard(data.user);
             } else {
                 alert('عذراً، هذا الحساب ليس له صلاحيات إدارية');
@@ -100,9 +163,28 @@ adminLoginForm.addEventListener('submit', async (e) => {
 });
 
 // Admin Logout
-adminLogoutBtn.addEventListener('click', (e) => {
+adminLogoutBtn.addEventListener('click', async (e) => {
     e.preventDefault();
+    const token = localStorage.getItem('adminToken');
+    const refreshToken = localStorage.getItem('refreshToken');
+    if (token) {
+        try {
+            await fetch('/api/auth/logout', {
+                method: 'POST',
+                headers: { 
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                    'X-CSRF-Token': csrfToken
+                },
+                body: JSON.stringify({ refreshToken })
+            });
+        } catch (error) {
+            console.error('Logout error:', error);
+        }
+    }
     localStorage.removeItem('adminToken');
+    localStorage.removeItem('token');
+    localStorage.removeItem('refreshToken');
     location.reload();
 });
 
@@ -127,9 +209,18 @@ document.querySelectorAll('.nav-link[data-tab]').forEach(link => {
         if (tab === 'trips') loadTrips();
         if (tab === 'tracking') loadTrackingEvents();
         if (tab === 'rates') loadRates();
-        if (tab === 'wallet') loadWalletTransactions();
+        if (tab === 'finances') {
+            loadWalletTransactions();
+            loadPayments();
+        }
         if (tab === 'coupons') loadCoupons();
         if (tab === 'tickets') loadTickets();
+        if (tab === 'reviews') loadReviews();
+        if (tab === 'carriers') loadCarriers();
+        if (tab === 'warehouses') loadWarehouses();
+        if (tab === 'notifications') loadNotifications();
+        if (tab === 'logs') loadLogsFull();
+        if (tab === 'files') loadFiles();
         if (tab === 'settings') loadSettings();
     });
 });
@@ -146,7 +237,8 @@ const loadStats = async () => {
             headers: { 'Authorization': `Bearer ${localStorage.getItem('adminToken')}` }
         });
         if (response.ok) {
-            const stats = await response.json();
+            const json = await response.json();
+            const stats = json.data;
             document.getElementById('stat-total-orders').innerText = stats.totalOrders || 0;
             document.getElementById('stat-pending-orders').innerText = stats.pendingOrders || 0;
             document.getElementById('stat-total-users').innerText = stats.totalUsers || 0;
@@ -163,7 +255,8 @@ const loadLogs = async () => {
             headers: { 'Authorization': `Bearer ${localStorage.getItem('adminToken')}` }
         });
         if (response.ok) {
-            const logs = await response.json();
+            const json = await response.json();
+            const logs = json.data;
             const tbody = document.getElementById('admin-logs-table');
             tbody.innerHTML = logs.map(log => `
                 <tr>
@@ -185,7 +278,8 @@ const loadUsers = async () => {
             headers: { 'Authorization': `Bearer ${localStorage.getItem('adminToken')}` }
         });
         if (response.ok) {
-            const users = await response.json();
+            const json = await response.json();
+            const users = json.data;
             const tbody = document.getElementById('admin-users-table');
             tbody.innerHTML = users.map(user => `
                 <tr>
@@ -215,7 +309,8 @@ const viewUser = async (id) => {
         const response = await fetch(`/api/v1/admin/portal/users`, {
             headers: { 'Authorization': `Bearer ${localStorage.getItem('adminToken')}` }
         });
-        const users = await response.json();
+        const json = await response.json();
+        const users = json.data;
         const user = users.find(u => u.id === id);
         
         if (!user) return alert('المستخدم غير موجود');
@@ -235,6 +330,10 @@ const viewUser = async (id) => {
                 <p><strong>آخر دخول:</strong> ${user.last_login_at ? new Date(user.last_login_at).toLocaleString('ar-EG') : 'أبداً'}</p>
                 <p><strong>تاريخ التسجيل:</strong> ${new Date(user.created_at).toLocaleDateString('ar-EG')}</p>
                 <p><strong>الرصيد:</strong> $${user.wallet_balance}</p>
+            </div>
+            <div style="grid-column: span 2; margin-top: 15px; border-top: 1px solid var(--border); padding-top: 15px;">
+                <p><strong>صورة الهوية:</strong></p>
+                ${user.kyc_document ? `<img src="${user.kyc_document}" style="max-width: 100%; border-radius: 8px; margin-top: 10px;" alt="ID Image">` : '<p>لا توجد صورة مرفوعة</p>'}
             </div>
         `;
         
@@ -410,6 +509,24 @@ const adjustWallet = async (id) => {
 let currentOrderId = null;
 const editOrder = (id) => {
     currentOrderId = id;
+    const order = allOrders.find(o => o.id === id);
+    if (order) {
+        const form = document.getElementById('order-status-form');
+        const fields = [
+            'status', 'weight', 'length', 'width', 'height', 
+            'shipping_fees', 'customs_fees', 'insurance_amount', 
+            'local_delivery_fees', 'tax_value', 'final_price',
+            'package_type', 'priority', 'warehouse_id', 'cancellation_reason'
+        ];
+        fields.forEach(field => {
+            if (form.elements[field]) {
+                form.elements[field].value = order[field] || '';
+            }
+        });
+        if (form.elements['reason']) {
+            form.elements['reason'].value = order.rejection_reason || '';
+        }
+    }
     showModal('order-modal');
 };
 
@@ -467,7 +584,9 @@ const loadOrders = async () => {
             headers: { 'Authorization': `Bearer ${localStorage.getItem('adminToken')}` }
         });
         if (response.ok) {
-            const orders = await response.json();
+            const json = await response.json();
+            allOrders = json.data;
+            const orders = allOrders;
             const tbody = document.getElementById('admin-orders-table');
             tbody.innerHTML = orders.map(order => `
                 <tr>
@@ -498,7 +617,8 @@ const loadTrackingEvents = async () => {
             headers: { 'Authorization': `Bearer ${localStorage.getItem('adminToken')}` }
         });
         if (response.ok) {
-            const events = await response.json();
+            const json = await response.json();
+            const events = json.data;
             const tbody = document.getElementById('admin-tracking-table');
             tbody.innerHTML = events.map(event => `
                 <tr>
@@ -574,7 +694,8 @@ const loadRates = async () => {
             headers: { 'Authorization': `Bearer ${localStorage.getItem('adminToken')}` }
         });
         if (response.ok) {
-            const rates = await response.json();
+            const json = await response.json();
+            const rates = json.data;
             const tbody = document.getElementById('admin-rates-table');
             tbody.innerHTML = rates.map(rate => `
                 <tr>
@@ -653,8 +774,10 @@ const loadTickets = async () => {
         const response = await fetch('/api/v1/admin/portal/tickets', {
             headers: { 'Authorization': `Bearer ${localStorage.getItem('adminToken')}` }
         });
-        const tickets = await response.json();
-        const tbody = document.querySelector('#tickets-table tbody');
+        const json = await response.json();
+        const tickets = json.data;
+        const tbody = document.getElementById('admin-tickets-table');
+        if (!tbody) return;
         tbody.innerHTML = '';
         
         tickets.forEach(ticket => {
@@ -704,13 +827,18 @@ const loadWalletTransactions = async () => {
             headers: { 'Authorization': `Bearer ${localStorage.getItem('adminToken')}` }
         });
         if (response.ok) {
-            const transactions = await response.json();
+            const json = await response.json();
+            const transactions = json.data;
             const tbody = document.getElementById('admin-wallet-table');
             tbody.innerHTML = transactions.map(t => `
                 <tr>
                     <td>${t.full_name || 'مستخدم'}</td>
-                    <td style="color: ${t.amount >= 0 ? 'var(--success)' : 'var(--danger)'}">$${t.amount}</td>
+                    <td style="color: ${t.amount >= 0 ? 'var(--success)' : 'var(--danger)'}">
+                        ${t.amount >= 0 ? '+' : ''}$${t.amount}
+                    </td>
                     <td>${t.type}</td>
+                    <td>$${t.balance_before}</td>
+                    <td>$${t.balance_after}</td>
                     <td>${t.description || '-'}</td>
                     <td>${new Date(t.created_at).toLocaleString('ar-EG')}</td>
                 </tr>
@@ -727,7 +855,8 @@ const loadCoupons = async () => {
             headers: { 'Authorization': `Bearer ${localStorage.getItem('adminToken')}` }
         });
         if (response.ok) {
-            const coupons = await response.json();
+            const json = await response.json();
+            const coupons = json.data;
             const tbody = document.getElementById('admin-coupons-table');
             tbody.innerHTML = coupons.map(c => `
                 <tr>
@@ -801,7 +930,8 @@ const loadTrips = async () => {
             headers: { 'Authorization': `Bearer ${localStorage.getItem('adminToken')}` }
         });
         if (response.ok) {
-            const trips = await response.json();
+            const json = await response.json();
+            const trips = json.data;
             const tbody = document.getElementById('admin-trips-table');
             tbody.innerHTML = trips.map(trip => `
                 <tr>
@@ -866,20 +996,6 @@ const deleteTrip = async (id) => {
     }
 };
 
-const runSystemTests = async () => {
-    try {
-        const response = await fetch('/api/v1/admin/portal/debug/run-tests', {
-            headers: { 'Authorization': `Bearer ${localStorage.getItem('adminToken')}` }
-        });
-        const data = await response.json();
-        if (response.ok) {
-            alert('نتائج الاختبارات:\n' + data.results.map(r => `${r.step}: ${r.status}`).join('\n'));
-        }
-    } catch (error) {
-        console.error('Test error:', error);
-    }
-};
-
 const generateReport = async () => {
     const month = prompt('أدخل الشهر (1-12):', new Date().getMonth() + 1);
     const year = prompt('أدخل السنة:', new Date().getFullYear());
@@ -889,7 +1005,8 @@ const generateReport = async () => {
         const response = await fetch(`/api/v1/admin/portal/monthly-report?month=${month}&year=${year}`, {
             headers: { 'Authorization': `Bearer ${localStorage.getItem('adminToken')}` }
         });
-        const data = await response.json();
+        const json = await response.json();
+        const data = json.data;
         if (response.ok) {
             alert(`تقرير شهر ${month}/${year}:\nإجمالي الطلبات: ${data.stats.total}\nالإيرادات: $${data.stats.revenue || 0}\nمستخدمين جدد: ${data.newUsers}`);
         }
@@ -918,7 +1035,8 @@ const loadSettings = async () => {
             headers: { 'Authorization': `Bearer ${localStorage.getItem('adminToken')}` }
         });
         if (response.ok) {
-            const settings = await response.json();
+            const json = await response.json();
+            const settings = json.data;
             const form = document.getElementById('settings-form');
             if (settings && form) {
                 // Map settings to form fields
@@ -989,7 +1107,8 @@ const uploadSettingsLogo = async (input) => {
             body: formData
         });
         if (response.ok) {
-            const data = await response.json();
+            const json = await response.json();
+            const data = json.data;
             document.getElementById('settings-logo-url').value = data.url;
             alert('تم رفع الشعار بنجاح');
         } else {
@@ -1001,6 +1120,322 @@ const uploadSettingsLogo = async (input) => {
     }
 };
 
+const loadReviews = async () => {
+    try {
+        const response = await fetch('/api/v1/admin/portal/reviews', {
+            headers: { 'Authorization': `Bearer ${localStorage.getItem('adminToken')}` }
+        });
+        if (response.ok) {
+            const json = await response.json();
+            const reviews = json.data;
+            const tbody = document.getElementById('admin-reviews-table');
+            tbody.innerHTML = reviews.map(r => `
+                <tr>
+                    <td>${r.user_name || 'زائر'}</td>
+                    <td>${'⭐'.repeat(r.rating)}</td>
+                    <td>${r.comment || '-'}</td>
+                    <td><span class="badge badge-${r.status === 'displayed' ? 'success' : 'danger'}">${r.status === 'displayed' ? 'معروض' : 'مخفي'}</span></td>
+                    <td>${new Date(r.created_at).toLocaleDateString('ar-EG')}</td>
+                    <td>
+                        ${r.status === 'hidden' ? `<button class="btn btn-glass btn-icon" onclick="updateReviewStatus('${r.id}', 'displayed')" title="عرض">👁️</button>` : ''}
+                        ${r.status === 'displayed' ? `<button class="btn btn-glass btn-icon" onclick="updateReviewStatus('${r.id}', 'hidden')" title="إخفاء">🚫</button>` : ''}
+                        <button class="btn btn-glass btn-icon" onclick="deleteReview('${r.id}')" title="حذف">🗑️</button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+    } catch (error) {
+        console.error('Failed to load reviews:', error);
+    }
+};
+
+const updateReviewStatus = async (id, status) => {
+    try {
+        const response = await fetch(`/api/v1/admin/portal/reviews/${id}/status`, {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('adminToken')}`,
+                'X-CSRF-Token': csrfToken
+            },
+            body: JSON.stringify({ status })
+        });
+        if (response.ok) {
+            loadReviews();
+        }
+    } catch (error) {
+        console.error('Update review status error:', error);
+    }
+};
+
+const deleteReview = async (id) => {
+    if (!confirm('هل أنت متأكد من حذف هذا التقييم؟')) return;
+    try {
+        const response = await fetch(`/api/v1/admin/portal/reviews/${id}`, {
+            method: 'DELETE',
+            headers: { 
+                'Authorization': `Bearer ${localStorage.getItem('adminToken')}`,
+                'X-CSRF-Token': csrfToken
+            }
+        });
+        if (response.ok) {
+            loadReviews();
+        }
+    } catch (error) {
+        console.error('Delete review error:', error);
+    }
+};
+
+const loadCarriers = async () => {
+    try {
+        const response = await fetch('/api/v1/admin/portal/carriers', {
+            headers: { 'Authorization': `Bearer ${localStorage.getItem('adminToken')}` }
+        });
+        if (response.ok) {
+            const json = await response.json();
+            const carriers = json.data;
+            const tbody = document.getElementById('admin-carriers-table');
+            tbody.innerHTML = carriers.map(c => `
+                <tr>
+                    <td>${c.name}</td>
+                    <td>${c.tracking_url || '-'}</td>
+                    <td>${c.contact_email || '-'}</td>
+                    <td><span class="badge badge-${c.status === 'active' ? 'success' : 'danger'}">${c.status}</span></td>
+                    <td>
+                        <button class="btn btn-glass btn-icon" onclick="deleteCarrier('${c.id}')">🗑️</button>
+                    </td>
+                </tr>
+            `).join('');
+            
+            // Update carrier select in rates modal
+            const select = document.getElementById('rate-carrier-select');
+            if (select) {
+                select.innerHTML = '<option value="">اختر الناقل...</option>' + 
+                    carriers.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+            }
+        }
+    } catch (error) {
+        console.error('Failed to load carriers:', error);
+    }
+};
+
+const addCarrier = async (e) => {
+    if (e) e.preventDefault();
+    const form = document.getElementById('add-carrier-form');
+    const formData = new FormData(form);
+    const data = Object.fromEntries(formData.entries());
+
+    try {
+        const response = await fetch('/api/v1/admin/portal/carriers', {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('adminToken')}`,
+                'X-CSRF-Token': csrfToken
+            },
+            body: JSON.stringify(data)
+        });
+        if (response.ok) {
+            alert('تم إضافة الناقل');
+            closeModal('modal-add-carrier');
+            loadCarriers();
+            form.reset();
+        }
+    } catch (error) {
+        console.error('Add carrier error:', error);
+    }
+};
+
+const deleteCarrier = async (id) => {
+    if (!confirm('هل أنت متأكد من حذف هذا الناقل؟')) return;
+    try {
+        const response = await fetch(`/api/v1/admin/portal/carriers/${id}`, {
+            method: 'DELETE',
+            headers: { 
+                'Authorization': `Bearer ${localStorage.getItem('adminToken')}`,
+                'X-CSRF-Token': csrfToken
+            }
+        });
+        if (response.ok) {
+            loadCarriers();
+        }
+    } catch (error) {
+        console.error('Delete carrier error:', error);
+    }
+};
+
+const loadWarehouses = async () => {
+    try {
+        const response = await fetch('/api/v1/admin/portal/warehouses', {
+            headers: { 'Authorization': `Bearer ${localStorage.getItem('adminToken')}` }
+        });
+        if (response.ok) {
+            const json = await response.json();
+            const warehouses = json.data;
+            const tbody = document.getElementById('admin-warehouses-table');
+            tbody.innerHTML = warehouses.map(w => `
+                <tr>
+                    <td>${w.name}</td>
+                    <td>${w.country}</td>
+                    <td>${w.city}</td>
+                    <td>${w.address}</td>
+                    <td>${w.contact_phone || '-'}</td>
+                    <td>
+                        <button class="btn btn-glass btn-icon" onclick="deleteWarehouse('${w.id}')">🗑️</button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+    } catch (error) {
+        console.error('Failed to load warehouses:', error);
+    }
+};
+
+const addWarehouse = async (e) => {
+    if (e) e.preventDefault();
+    const form = document.getElementById('add-warehouse-form');
+    const formData = new FormData(form);
+    const data = Object.fromEntries(formData.entries());
+
+    try {
+        const response = await fetch('/api/v1/admin/portal/warehouses', {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('adminToken')}`,
+                'X-CSRF-Token': csrfToken
+            },
+            body: JSON.stringify(data)
+        });
+        if (response.ok) {
+            alert('تم إضافة المستودع');
+            closeModal('modal-add-warehouse');
+            loadWarehouses();
+            form.reset();
+        }
+    } catch (error) {
+        console.error('Add warehouse error:', error);
+    }
+};
+
+const deleteWarehouse = async (id) => {
+    if (!confirm('هل أنت متأكد من حذف هذا المستودع؟')) return;
+    try {
+        const response = await fetch(`/api/v1/admin/portal/warehouses/${id}`, {
+            method: 'DELETE',
+            headers: { 
+                'Authorization': `Bearer ${localStorage.getItem('adminToken')}`,
+                'X-CSRF-Token': csrfToken
+            }
+        });
+        if (response.ok) {
+            loadWarehouses();
+        }
+    } catch (error) {
+        console.error('Delete warehouse error:', error);
+    }
+};
+
+const loadNotifications = async () => {
+    try {
+        const response = await fetch('/api/v1/admin/portal/notifications/all', {
+            headers: { 'Authorization': `Bearer ${localStorage.getItem('adminToken')}` }
+        });
+        if (response.ok) {
+            const json = await response.json();
+            const notifications = json.data;
+            const tbody = document.getElementById('admin-notifications-table');
+            tbody.innerHTML = notifications.map(n => `
+                <tr>
+                    <td>${n.user_name || 'الجميع'}</td>
+                    <td>${n.title}</td>
+                    <td>${n.message}</td>
+                    <td>${n.type || 'system'}</td>
+                    <td>${new Date(n.created_at).toLocaleString('ar-EG')}</td>
+                </tr>
+            `).join('');
+        }
+    } catch (error) {
+        console.error('Failed to load notifications:', error);
+    }
+};
+
+const loadLogsFull = async () => {
+    try {
+        const response = await fetch('/api/v1/admin/portal/logs', {
+            headers: { 'Authorization': `Bearer ${localStorage.getItem('adminToken')}` }
+        });
+        if (response.ok) {
+            const json = await response.json();
+            const logs = json.data;
+            const tbody = document.getElementById('admin-logs-full-table');
+            tbody.innerHTML = logs.map(log => `
+                <tr>
+                    <td>${log.user_name || 'النظام'}</td>
+                    <td>${log.action}</td>
+                    <td>${log.resource_type || '-'}</td>
+                    <td>${log.ip_address || '-'}</td>
+                    <td>${new Date(log.created_at).toLocaleString('ar-EG')}</td>
+                    <td>
+                        <button class="btn btn-glass btn-icon" onclick="alert('${(log.details || '').replace(/'/g, "\\'")}')">ℹ️</button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+    } catch (error) {
+        console.error('Failed to load full logs:', error);
+    }
+};
+
+const loadPayments = async () => {
+    try {
+        const response = await fetch('/api/v1/admin/portal/payments', {
+            headers: { 'Authorization': `Bearer ${localStorage.getItem('adminToken')}` }
+        });
+        if (response.ok) {
+            const json = await response.json();
+            const payments = json.data;
+            const tbody = document.getElementById('admin-payments-table');
+            tbody.innerHTML = payments.map(p => `
+                <tr>
+                    <td>${p.full_name || 'مستخدم'}</td>
+                    <td>$${p.amount}</td>
+                    <td>${p.method || '-'}</td>
+                    <td>${p.shipment_id ? p.shipment_id.substring(0, 8) : '-'}</td>
+                    <td><span class="badge badge-${p.status === 'completed' ? 'success' : 'pending'}">${p.status === 'completed' ? 'مكتمل' : 'معلق'}</span></td>
+                    <td>${new Date(p.created_at).toLocaleString('ar-EG')}</td>
+                </tr>
+            `).join('');
+        }
+    } catch (error) {
+        console.error('Failed to load payments:', error);
+    }
+};
+
+const loadFiles = async () => {
+    try {
+        const response = await fetch('/api/v1/admin/portal/files', {
+            headers: { 'Authorization': `Bearer ${localStorage.getItem('adminToken')}` }
+        });
+        if (response.ok) {
+            const json = await response.json();
+            const files = json.data;
+            const tbody = document.getElementById('admin-files-table');
+            tbody.innerHTML = files.map(f => `
+                <tr>
+                    <td>${f.user_name || 'مستخدم'}</td>
+                    <td>${f.serial_number || f.order_id || '-'}</td>
+                    <td>${f.type || 'file'}</td>
+                    <td><a href="${f.file_url}" target="_blank" class="btn btn-glass btn-icon">📎</a></td>
+                    <td>${new Date(f.created_at).toLocaleString('ar-EG')}</td>
+                </tr>
+            `).join('');
+        }
+    } catch (error) {
+        console.error('Failed to load files:', error);
+    }
+};
+
 // Event Listeners
 document.getElementById('settings-form')?.addEventListener('submit', saveSettings);
 document.getElementById('order-status-form')?.addEventListener('submit', updateOrderStatus);
@@ -1008,6 +1443,8 @@ document.getElementById('add-trip-form')?.addEventListener('submit', addTrip);
 document.getElementById('add-rate-form')?.addEventListener('submit', addRate);
 document.getElementById('add-coupon-form')?.addEventListener('submit', addCoupon);
 document.getElementById('add-tracking-form')?.addEventListener('submit', addTrackingEvent);
+document.getElementById('add-carrier-form')?.addEventListener('submit', addCarrier);
+document.getElementById('add-warehouse-form')?.addEventListener('submit', addWarehouse);
 
 // Init
 fetchCsrfToken().then(() => {

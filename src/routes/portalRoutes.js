@@ -1,6 +1,7 @@
 const express = require('express');
 const portalController = require('../controllers/portalController.js');
 const { authenticate } = require('../middleware/authMiddleware.js');
+const upload = require('../middleware/uploadMiddleware.js');
 const { validate } = require('../middleware/validateMiddleware.js');
 const { createShipmentSchema } = require('../validators/shipmentValidator.js');
 
@@ -21,9 +22,11 @@ router.get('/customer/portal/addresses', portalController.getAddresses);
 router.post('/customer/portal/addresses', portalController.createAddress);
 router.delete('/customer/portal/addresses/:id', portalController.deleteAddress);
 router.get('/customer/portal/transactions', portalController.getTransactions);
+router.get('/customer/portal/payments', portalController.getPayments);
+router.get('/customer/portal/orders/:orderId/files', portalController.getOrderFiles);
 router.get('/customer/portal/tickets', portalController.getTickets);
 router.post('/customer/portal/tickets', portalController.createTicket);
-router.post('/customer/portal/upload/product', portalController.uploadProductImage);
-router.post('/customer/portal/upload/id', portalController.uploadIdImage);
+router.post('/customer/portal/upload/product', upload.single('file'), portalController.uploadProductImage);
+router.post('/customer/portal/upload/id', upload.single('file'), portalController.uploadIdImage);
 
 module.exports = router;

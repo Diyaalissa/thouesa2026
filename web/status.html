@@ -29,7 +29,7 @@
 <body class="dark-theme">
     <div class="container" style="max-width: 800px; margin-top: 50px;">
         <div class="text-center" style="margin-bottom: 40px;">
-            <img id="site-logo" src="/web/assets/logo/logo.png" alt="logo" style="height: 80px; margin-bottom: 20px;">
+            <img id="site-logo" data-logo src="/web/assets/logo/logo.png" alt="logo" style="height: 80px; margin-bottom: 20px;">
             <h1 id="site-name">THOUESA</h1>
             <p class="text-muted">حالة النظام والخدمات</p>
         </div>
@@ -50,52 +50,16 @@
             <p id="db-msg">جاري الفحص...</p>
         </div>
 
-        <div class="status-card">
-            <h3>معلومات النظام</h3>
-            <div id="system-info" style="margin-top: 15px; font-family: monospace; font-size: 0.9rem;">
-                جاري تحميل المعلومات...
-            </div>
-        </div>
-
         <div class="text-center">
             <a href="/" class="btn btn-glass">العودة للرئيسية</a>
         </div>
     </div>
 
-    <script type="module" src="/web/js/site-init.js"></script>
-    <script>
-        async function checkStatus() {
-            try {
-                const healthRes = await fetch('/api/health');
-                const health = await healthRes.json();
-                
-                document.getElementById('server-indicator').className = `status-indicator status-${health.status === 'ok' ? 'ok' : 'error'}`;
-                document.getElementById('server-msg').innerText = `السيرفر يعمل بشكل طبيعي (الإصدار: ${health.version})`;
-                
-                document.getElementById('db-indicator').className = `status-indicator status-${health.database === 'connected' ? 'ok' : 'error'}`;
-                document.getElementById('db-msg').innerText = health.database === 'connected' ? 'قاعدة البيانات متصلة' : 'خطأ في الاتصال بقاعدة البيانات';
-                
-                const infoRes = await fetch('/api/server-info');
-                const info = await infoRes.json();
-                
-                const infoHtml = `
-                    <div>وقت التشغيل: ${Math.floor(info.uptime / 3600)} ساعة ${Math.floor((info.uptime % 3600) / 60)} دقيقة</div>
-                    <div>الذاكرة المستخدمة: ${Math.round(info.memoryUsage.rss / 1024 / 1024)} MB</div>
-                    <div>نظام التشغيل: ${info.os.platform} ${info.os.release}</div>
-                    <div>المعالجات: ${info.os.cpus}</div>
-                    <div>الذاكرة الكلية: ${Math.round(info.os.totalMemory / 1024 / 1024 / 1024)} GB</div>
-                `;
-                document.getElementById('system-info').innerHTML = infoHtml;
-                
-            } catch (error) {
-                console.error('Status check failed:', error);
-                document.getElementById('server-indicator').className = 'status-indicator status-error';
-                document.getElementById('server-msg').innerText = 'فشل الاتصال بالسيرفر';
-            }
-        }
-
-        checkStatus();
-        setInterval(checkStatus, 30000);
+    <script type="module">
+        import { SITE_CONFIG } from '/web/config/siteConfig.js';
+        window.SITE_CONFIG = SITE_CONFIG;
     </script>
+    <script type="module" src="/web/js/site-init.js"></script>
+    <script src="/web/js/status-inline.js"></script>
 </body>
 </html>

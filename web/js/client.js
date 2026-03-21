@@ -6,8 +6,8 @@ let csrfToken = '';
 const fetchCsrfToken = async () => {
     try {
         const response = await fetch('/api/csrf-token', { credentials: 'include' });
-        const data = await response.json();
-        csrfToken = data.csrfToken;
+        const json = await response.json();
+        csrfToken = json.data.token;
     } catch (error) {
         console.error('Failed to fetch CSRF token:', error);
     }
@@ -46,12 +46,16 @@ window.login = async function() {
             },
             body: JSON.stringify({ phone: fullPhone, password })
         });
-        const data = await res.json();
+        const json = await res.json();
+        const data = json.data;
         if (res.ok) {
             localStorage.setItem('token', data.token);
+            if (data.refreshToken) {
+                localStorage.setItem('refreshToken', data.refreshToken);
+            }
             window.location.href = data.user.role === 'admin' ? '/web/gate77.html' : '/web/client.html';
         } else {
-            alert(handleApiError(data, 'خطأ في المصادقة'));
+            alert(handleApiError(json, 'خطأ في المصادقة'));
         }
     } catch (error) {
         console.error('Login error:', error);
@@ -85,12 +89,16 @@ window.register = async function() {
             },
             body: JSON.stringify({ name: full_name, email, password, phone: fullPhone })
         });
-        const data = await res.json();
+        const json = await res.json();
+        const data = json.data;
         if (res.ok) {
             localStorage.setItem('token', data.token);
+            if (data.refreshToken) {
+                localStorage.setItem('refreshToken', data.refreshToken);
+            }
             window.location.href = '/web/client.html';
         } else {
-            alert(handleApiError(data, 'خطأ في التسجيل'));
+            alert(handleApiError(json, 'خطأ في التسجيل'));
         }
     } catch (error) {
         console.error('Register error:', error);

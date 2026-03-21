@@ -6,33 +6,43 @@ const { query, pool } = require('../db.cjs');
 
 const appConfig = require('../config/appConfig.js');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'thouesa_secret_key_2026';
-const TOKEN_PEPPER = process.env.TOKEN_PEPPER || 'thouesa_pepper_v1';
+const JWT_SECRET = process.env.JWT_SECRET;
+const TOKEN_PEPPER = process.env.TOKEN_PEPPER;
+
+if (!JWT_SECRET || !TOKEN_PEPPER) {
+  throw new Error('JWT_SECRET and TOKEN_PEPPER environment variables are required');
+}
 
 const normalizePhone = (phone) => {
   if (!phone) return null;
   // Remove all non-numeric characters
   let cleaned = phone.replace(/\D/g, '');
   
-  // Jordan specific: 079... (10 digits) -> 96279...
-  if (cleaned.startsWith('0') && cleaned.length === 10) {
-    cleaned = '962' + cleaned.slice(1);
+  // If it already starts with 962 or 213, assume it's normalized
+  if (cleaned.startsWith('962') && (cleaned.length === 12 || cleaned.length === 11)) {
+    return cleaned;
   }
-  // Algeria specific: 05/06/07... (10 digits) -> 213...
-  else if (cleaned.startsWith('0') && cleaned.length === 10 && (cleaned[1] === '5' || cleaned[1] === '6' || cleaned[1] === '7')) {
-    cleaned = '213' + cleaned.slice(1);
-  }
-  
-  // Validation regex for Jordan and Algeria
-  const jordanRegex = /^9627[789][0-9]{7}$/;
-  const algeriaRegex = /^213[567][0-9]{8}$/;
-
-  if (jordanRegex.test(cleaned) || algeriaRegex.test(cleaned)) {
+  if (cleaned.startsWith('213') && (cleaned.length === 12 || cleaned.length === 11)) {
     return cleaned;
   }
 
-  // If it doesn't match, we return it but it might fail DB unique/format checks
-  // In production, we might want to throw an error here
+  // Jordan specific: 079... (10 digits) -> 96279...
+  if (cleaned.startsWith('0') && cleaned.length === 10 && (cleaned[1] === '7' || cleaned[1] === '8' || cleaned[1] === '9')) {
+    cleaned = '962' + cleaned.slice(1);
+  }
+  // Algeria specific: 05/06/07... (10 digits) -> 213...
+  else if (cleaned.startsWith('0') && cleaned.length === 10 && (cleaned[1] === '5' || cleaned[1] === '6')) {
+    cleaned = '213' + cleaned.slice(1);
+  }
+  // If it starts with 7, 8, 9 and is 9 digits (Jordan without leading 0)
+  else if (cleaned.length === 9 && (cleaned[0] === '7' || cleaned[0] === '8' || cleaned[0] === '9')) {
+    cleaned = '962' + cleaned;
+  }
+  // If it starts with 5, 6 and is 9 digits (Algeria without leading 0)
+  else if (cleaned.length === 9 && (cleaned[0] === '5' || cleaned[0] === '6')) {
+    cleaned = '213' + cleaned;
+  }
+  
   return cleaned;
 };
 
@@ -88,7 +98,7 @@ exports.findUserByIdentifier = async (identifier) => {
   return results[0] || null;
 };
 
-exports.generateTokens = async (user, clientInfo = {}) => {
+exports.generateTokens = async (user, clientInfo = {}, txnConnection = null) => {
   const accessToken = jwt.sign(
     { 
       id: user.id, 
@@ -125,19 +135,21 @@ exports.generateTokens = async (user, clientInfo = {}) => {
     .update(ipPrefix + (clientInfo.userAgent || ''))
     .digest('hex');
 
+  const dbConn = txnConnection || pool;
+
   // Enforce max 5 refresh tokens per user - Optimized deletion
-  const [currentTokens] = await pool.execute(
+  const [currentTokens] = await dbConn.execute(
     'SELECT id FROM refresh_tokens WHERE user_id = ? ORDER BY created_at ASC', 
     [user.id]
   );
   
   if (currentTokens.length >= 5) {
     const tokensToDelete = currentTokens.slice(0, currentTokens.length - 4).map(t => t.id);
-    await pool.query('DELETE FROM refresh_tokens WHERE id IN (?)', [tokensToDelete]);
+    await dbConn.query('DELETE FROM refresh_tokens WHERE id IN (?)', [tokensToDelete]);
   }
 
   const sql = 'INSERT INTO refresh_tokens (id, user_id, token, ip_hash, user_agent, expires_at) VALUES (?, ?, ?, ?, ?, ?)';
-  await query(sql, [uuidv4(), user.id, hashedToken, clientFingerprint, clientInfo.userAgent || null, expiresAt]);
+  await dbConn.query(sql, [uuidv4(), user.id, hashedToken, clientFingerprint, clientInfo.userAgent || null, expiresAt]);
 
   return { accessToken, refreshToken };
 };
@@ -170,6 +182,25 @@ exports.refreshAccessToken = async (oldRefreshToken, clientInfo = {}) => {
       return null;
     }
 
+    // Verify client fingerprint
+    let ipPrefix = clientInfo.ip || 'unknown';
+    if (ipPrefix.includes('.')) {
+      ipPrefix = ipPrefix.split('.').slice(0, 3).join('.');
+    } else if (ipPrefix.includes(':')) {
+      ipPrefix = ipPrefix.split(':').slice(0, 3).join(':');
+    }
+    const clientFingerprint = crypto.createHash('sha256')
+      .update(ipPrefix + (clientInfo.userAgent || ''))
+      .digest('hex');
+
+    if (tokenData.ip_hash !== clientFingerprint) {
+      // Fingerprint mismatch - possible token theft
+      // Revoke all tokens for this user as a security measure
+      await connection.execute('DELETE FROM refresh_tokens WHERE user_id = ?', [tokenData.user_id]);
+      await connection.commit();
+      return null;
+    }
+
     // Delete old token atomically
     await connection.execute('DELETE FROM refresh_tokens WHERE id = ?', [tokenData.id]);
 
@@ -182,7 +213,7 @@ exports.refreshAccessToken = async (oldRefreshToken, clientInfo = {}) => {
     }
 
     // Generate new pair
-    const tokens = await exports.generateTokens(user, clientInfo);
+    const tokens = await exports.generateTokens(user, clientInfo, connection);
     
     await connection.commit();
     return tokens;

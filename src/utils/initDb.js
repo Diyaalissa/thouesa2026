@@ -8,7 +8,13 @@ exports.initDatabase = async () => {
     
     // Ensure database uses utf8mb4
     const dbName = process.env.DB_NAME || 'thoumaqd_thouesa';
-    await db.query(`ALTER DATABASE \`${dbName}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`);
+    
+    // Check current collation
+    const [dbInfo] = await db.query(`SELECT DEFAULT_CHARACTER_SET_NAME, DEFAULT_COLLATION_NAME FROM information_schema.SCHEMATA WHERE SCHEMA_NAME = ?`, [dbName]);
+    if (dbInfo && (dbInfo.DEFAULT_CHARACTER_SET_NAME !== 'utf8mb4' || dbInfo.DEFAULT_COLLATION_NAME !== 'utf8mb4_unicode_ci')) {
+      logger.info(`Updating database collation to utf8mb4_unicode_ci for ${dbName}`);
+      await db.query(`ALTER DATABASE \`${dbName}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`);
+    }
 
     // Disable foreign key checks
     await db.query('SET FOREIGN_KEY_CHECKS = 0');
@@ -20,10 +26,22 @@ exports.initDatabase = async () => {
     }
 
     // Force existing tables to utf8mb4 and CHAR(36) for IDs
-    const tables = ['users', 'addresses', 'orders', 'shipments', 'payments', 'wallet_transactions', 'notifications', 'logs', 'refresh_tokens', 'settings', 'trips', 'reviews', 'transactions'];
+    const tables = [
+      'users', 'addresses', 'warehouses', 'carriers', 'orders', 'shipments', 
+      'order_items', 'order_status_history', 'coupons', 'coupon_usage', 
+      'referrals', 'files', 'payments', 'transactions', 'support_tickets', 
+      'trips', 'settings', 'reviews', 'notifications', 'logs', 
+      'refresh_tokens', 'shipment_tracking_events', 'shipping_rates'
+    ];
+    
     for (const table of tables) {
       try {
-        await db.query(`ALTER TABLE \`${table}\` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`);
+        // Check table collation
+        const [tableInfo] = await db.query(`SELECT TABLE_COLLATION FROM information_schema.TABLES WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?`, [dbName, table]);
+        if (tableInfo && tableInfo.TABLE_COLLATION !== 'utf8mb4_unicode_ci') {
+          await db.query(`ALTER TABLE \`${table}\` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`);
+        }
+        
         // Ensure ID is CHAR(36)
         await db.query(`ALTER TABLE \`${table}\` MODIFY COLUMN id CHAR(36) NOT NULL`);
       } catch (e) {
@@ -52,6 +70,7 @@ exports.initDatabase = async () => {
       const columns = await db.query('SHOW COLUMNS FROM orders');
       const columnNames = columns.map(c => c.Field);
       
+      if (!columnNames.includes('product_image_url')) await db.query('ALTER TABLE orders ADD COLUMN product_image_url TEXT');
       if (!columnNames.includes('origin_country')) {
         await db.query('ALTER TABLE orders ADD COLUMN origin_country VARCHAR(50)');
       }
@@ -79,8 +98,17 @@ exports.initDatabase = async () => {
       if (!columnNames.includes('operator_id')) await db.query('ALTER TABLE orders ADD COLUMN operator_id CHAR(36)');
       if (!columnNames.includes('payment_status')) await db.query("ALTER TABLE orders ADD COLUMN payment_status ENUM('unpaid', 'paid', 'partially_paid') DEFAULT 'unpaid'");
       
-      // Update ENUM to include awaiting_payment
-      await db.query("ALTER TABLE orders MODIFY COLUMN status ENUM('pending', 'approved', 'awaiting_payment', 'in_progress', 'completed', 'rejected') DEFAULT 'pending'");
+      // Update ENUM to include awaiting_payment and cancelled
+      await db.query("ALTER TABLE orders MODIFY COLUMN status ENUM('pending', 'approved', 'awaiting_payment', 'in_progress', 'completed', 'rejected', 'cancelled') DEFAULT 'pending'");
+
+      // Add admin_reply to support_tickets
+      try {
+        const [ticketCols] = await db.query('SHOW COLUMNS FROM support_tickets');
+        const ticketColNames = ticketCols.map(c => c.Field);
+        if (!ticketColNames.includes('admin_reply')) {
+          await db.query('ALTER TABLE support_tickets ADD COLUMN admin_reply TEXT AFTER message');
+        }
+      } catch (e) {}
 
       // Financial precision and constraints
       try {
@@ -178,6 +206,26 @@ exports.initDatabase = async () => {
         }
       } catch (e) { /* Table might not exist yet */ }
 
+      // Add status to reviews and carriers if missing
+      try {
+        const reviewCols = await db.query('SHOW COLUMNS FROM reviews');
+        const reviewColNames = reviewCols.map(c => c.Field);
+        if (!reviewColNames.includes('user_id')) {
+          await db.query('ALTER TABLE reviews ADD COLUMN user_id CHAR(36) AFTER id');
+        }
+        if (!reviewColNames.includes('status')) {
+          await db.query("ALTER TABLE reviews ADD COLUMN status ENUM('displayed', 'hidden') DEFAULT 'displayed'");
+        }
+      } catch (e) {}
+
+      try {
+        const carrierCols = await db.query('SHOW COLUMNS FROM carriers');
+        const carrierColNames = carrierCols.map(c => c.Field);
+        if (!carrierColNames.includes('status')) {
+          await db.query("ALTER TABLE carriers ADD COLUMN status ENUM('active', 'inactive') DEFAULT 'active'");
+        }
+      } catch (e) {}
+
       // Add composite indexes
       try {
         await db.query('CREATE INDEX idx_orders_user_created ON orders (user_id, created_at)');
@@ -251,28 +299,21 @@ exports.initDatabase = async () => {
 
     logger.info('Database schema initialized successfully.');
 
-    // Seed Admin User
-    try {
-      const bcrypt = require('bcryptjs');
-      const { v4: uuidv4 } = require('uuid');
-      const adminEmail = 'admin@thouesa.com';
-      const adminPass = 'adminPassword123';
-      
-      const existing = await db.query('SELECT id FROM users WHERE email = ?', [adminEmail]);
-      if (existing.length === 0) {
-        const id = uuidv4();
-        const hashedPassword = await bcrypt.hash(adminPass, 12);
-        await db.query(
-          'INSERT INTO users (id, customer_id, full_name, email, password, phone, role, verification_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-          [id, 'ADM-001', 'مدير النظام', adminEmail, hashedPassword, '962790000000', 'admin', 'verified']
-        );
-        logger.info('Default admin user created: ' + adminEmail);
-      }
-    } catch (e) {
-      logger.error('Error seeding admin user:', e);
-    }
-
   } catch (error) {
     logger.error('Failed to initialize database schema:', error);
+    throw error;
   }
 };
+
+if (require.main === module) {
+  require('dotenv').config();
+  exports.initDatabase()
+    .then(() => {
+      console.log('✅ Database initialized');
+      process.exit(0);
+    })
+    .catch((err) => {
+      console.error('❌ initDatabase failed:', err);
+      process.exit(1);
+    });
+}

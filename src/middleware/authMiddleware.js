@@ -1,7 +1,11 @@
 const jwt = require('jsonwebtoken');
 const logger = require('../utils/logger.js');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'thouesa_secret_key_2026';
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  throw new Error('JWT_SECRET environment variable is required');
+}
+const secretToUse = JWT_SECRET;
 
 const { query } = require('../db.cjs');
 
@@ -13,7 +17,7 @@ exports.authenticate = async (req, res, next) => {
   }
 
   try {
-    const decoded = jwt.verify(token, JWT_SECRET);
+    const decoded = jwt.verify(token, secretToUse);
     
     // Check if user is still active in DB
     const [user] = await query('SELECT id, role, account_status FROM users WHERE id = ?', [decoded.id]);

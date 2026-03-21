@@ -5,10 +5,10 @@ exports.validate = (schema) => (req, res, next) => {
     schema.parse(req.body);
     next();
   } catch (error) {
-    logger.warn('Validation Error:', error.errors);
+    logger.warn('Validation Error:', error.issues);
     return res.status(400).json({
       message: 'Validation failed',
-      errors: error.errors
+      errors: error.issues
     });
   }
 };

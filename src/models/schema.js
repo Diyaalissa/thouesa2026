@@ -9,7 +9,6 @@ CREATE TABLE IF NOT EXISTS users (
   role ENUM('admin', 'operator', 'customer') DEFAULT 'customer',
   verification_status ENUM('pending', 'verified', 'rejected') DEFAULT 'pending',
   verification_note TEXT,
-  id_image_url TEXT,
   wallet_balance DECIMAL(18, 2) NOT NULL DEFAULT 0.00,
   last_login_at DATETIME,
   last_login_ip VARCHAR(45),
@@ -55,6 +54,7 @@ CREATE TABLE IF NOT EXISTS carriers (
   name VARCHAR(100) NOT NULL,
   tracking_url TEXT,
   contact_email VARCHAR(255),
+  status ENUM('active', 'inactive') DEFAULT 'active',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
@@ -81,6 +81,7 @@ CREATE TABLE IF NOT EXISTS orders (
   customs_included BOOLEAN DEFAULT TRUE,
   address_id CHAR(36),
   rejection_reason TEXT,
+  cancellation_reason TEXT,
   tracking_number VARCHAR(100),
   weight DECIMAL(10, 2) DEFAULT 0.00,
   length DECIMAL(10, 2) DEFAULT 0.00,
@@ -241,6 +242,7 @@ CREATE TABLE IF NOT EXISTS support_tickets (
   user_id CHAR(36),
   subject VARCHAR(255),
   message TEXT,
+  admin_reply TEXT,
   status ENUM('open', 'answered', 'closed') DEFAULT 'open',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
@@ -278,10 +280,13 @@ CREATE TABLE IF NOT EXISTS settings (
 
 CREATE TABLE IF NOT EXISTS reviews (
   id CHAR(36) PRIMARY KEY,
+  user_id CHAR(36),
   full_name VARCHAR(100),
   rating INT DEFAULT 5,
   comment TEXT,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  status ENUM('displayed', 'hidden') DEFAULT 'displayed',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
 ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS notifications (

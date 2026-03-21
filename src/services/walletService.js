@@ -1,25 +1,46 @@
 const { v4: uuidv4 } = require('uuid');
-const { query } = require('../db.cjs');
+const { query, getConnection } = require('../db.cjs');
 
 exports.getBalance = async (userId) => {
-    const sql = `
-        SELECT 
-            COALESCE(SUM(CASE WHEN type IN ('deposit', 'refund') THEN amount ELSE -amount END), 0) as balance
-        FROM transactions
-        WHERE user_id = ?
-    `;
-    const results = await query(sql, [userId]);
-    return results[0].balance;
+    const [user] = await query('SELECT wallet_balance FROM users WHERE id = ?', [userId]);
+    return user ? user.wallet_balance : 0;
 };
 
 exports.addTransaction = async (transactionData) => {
-    const { user_id, amount, type, description } = transactionData;
-    const id = uuidv4();
-
-    const sql = 'INSERT INTO transactions (id, user_id, amount, type, description) VALUES (?, ?, ?, ?, ?)';
-    await query(sql, [id, user_id, amount, type, description]);
-
-    return { id, user_id, amount, type };
+    const { user_id, amount, type, description, reference_id, reference_type } = transactionData;
+    const connection = await getConnection();
+    
+    try {
+        await connection.beginTransaction();
+        
+        const [user] = await connection.query('SELECT wallet_balance FROM users WHERE id = ? FOR UPDATE', [user_id]);
+        if (!user) throw new Error('User not found');
+        
+        const balanceBefore = user.wallet_balance;
+        let balanceAfter;
+        
+        if (['deposit', 'refund', 'adjustment'].includes(type)) {
+            balanceAfter = balanceBefore + parseFloat(amount);
+        } else {
+            balanceAfter = balanceBefore - parseFloat(amount);
+        }
+        
+        const id = uuidv4();
+        const sql = `INSERT INTO transactions 
+                    (id, user_id, amount, balance_before, balance_after, type, description, reference_id, reference_type) 
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+        
+        await connection.query(sql, [id, user_id, amount, balanceBefore, balanceAfter, type, description, reference_id, reference_type]);
+        await connection.query('UPDATE users SET wallet_balance = ? WHERE id = ?', [balanceAfter, user_id]);
+        
+        await connection.commit();
+        return { id, user_id, amount, type, balance_after: balanceAfter };
+    } catch (error) {
+        await connection.rollback();
+        throw error;
+    } finally {
+        connection.release();
+    }
 };
 
 exports.getTransactionsByUserId = async (userId, limit = 20, offset = 0) => {

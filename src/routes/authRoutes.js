@@ -17,7 +17,11 @@ const validate = (schema) => (req, res, next) => {
     schema.parse(req.body);
     next();
   } catch (error) {
-    return res.status(400).json({ message: 'Validation error', errors: error.errors });
+    return res.status(400).json({ 
+      status: 'error',
+      message: 'Validation error', 
+      data: { errors: error.issues } 
+    });
   }
 };
 
