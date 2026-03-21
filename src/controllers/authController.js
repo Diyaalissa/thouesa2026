@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 const authService = require('../services/authService.js');
 const logger = require('../utils/logger.js');
 const { query } = require('../db.cjs');
@@ -5,6 +6,7 @@ const NodeCache = require('node-cache');
 const { logAction } = require('../utils/auditLogger.js');
 
 const loginAttemptsCache = new NodeCache({ stdTTL: 600 });
+const TOKEN_PEPPER = process.env.TOKEN_PEPPER;
 
 exports.register = async (req, res, next) => {
   try {
@@ -177,6 +179,14 @@ exports.refreshToken = async (req, res, next) => {
     const result = await authService.refreshAccessToken(refreshToken, clientInfo);
     if (!result) return res.status(401).json({ message: 'Invalid or expired refresh token' });
 
+    res.cookie('token', result.accessToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 24 * 60 * 60 * 1000
+    });
+
     res.json({
       status: 'success',
       message: 'Token refreshed',
@@ -196,7 +206,10 @@ exports.logout = async (req, res, next) => {
     const { refreshToken } = req.body;
     if (req.user && req.user.id) {
       if (refreshToken) {
-        await query('DELETE FROM refresh_tokens WHERE user_id = ? AND token = ?', [req.user.id, refreshToken]);
+        const hashedRefreshToken = crypto.createHash('sha256')
+          .update(refreshToken + TOKEN_PEPPER)
+          .digest('hex');
+        await query('DELETE FROM refresh_tokens WHERE user_id = ? AND token = ?', [req.user.id, hashedRefreshToken]);
       } else {
         await query('DELETE FROM refresh_tokens WHERE user_id = ?', [req.user.id]);
       }

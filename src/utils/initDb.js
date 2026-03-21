@@ -103,7 +103,7 @@ exports.initDatabase = async () => {
 
       // Add admin_reply to support_tickets
       try {
-        const [ticketCols] = await db.query('SHOW COLUMNS FROM support_tickets');
+        const ticketCols = await db.query('SHOW COLUMNS FROM support_tickets');
         const ticketColNames = ticketCols.map(c => c.Field);
         if (!ticketColNames.includes('admin_reply')) {
           await db.query('ALTER TABLE support_tickets ADD COLUMN admin_reply TEXT AFTER message');

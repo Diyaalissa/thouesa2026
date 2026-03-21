@@ -129,17 +129,17 @@ app.get('/api/health', async (req, res) => {
   try {
     const { query } = require('./db.cjs');
     await query('SELECT 1');
-    res.json({ status: "ok", database: "connected", timestamp: new Date().toISOString() });
+    res.json({ status: "ok", timestamp: new Date().toISOString() });
   } catch (error) {
     logger.error('Health Check Failure (DB down, but server is up):', error.message);
-    res.status(503).json({ status: "error", database: "down", timestamp: new Date().toISOString() });
+    res.status(503).json({ status: "error", timestamp: new Date().toISOString() });
   }
 });
 
 // Metrics / Detailed Monitoring (Protected)
 app.get('/api/metrics', async (req, res) => {
   const metricsKey = req.headers['x-metrics-key'];
-  if (process.env.NODE_ENV === 'production' && metricsKey !== process.env.METRICS_KEY) {
+  if (!process.env.METRICS_KEY || metricsKey !== process.env.METRICS_KEY) {
     return res.status(403).json({ message: 'Forbidden' });
   }
 
