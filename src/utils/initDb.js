@@ -48,7 +48,7 @@ exports.initDatabase = async () => {
         
         // Ensure ID is CHAR(36)
         await db.query(`ALTER TABLE \`${table}\` MODIFY COLUMN id CHAR(36) NOT NULL`);
-      } catch (e) {
+      } catch {
         // Table might not exist yet or column might differ
       }
     }
@@ -112,12 +112,14 @@ exports.initDatabase = async () => {
         if (!ticketColNames.includes('admin_reply')) {
           await db.query('ALTER TABLE support_tickets ADD COLUMN admin_reply TEXT AFTER message');
         }
-      } catch (e) {}
+      } catch {
+        // Ignore error
+      }
 
       // Financial precision and constraints
       try {
         await db.query('ALTER TABLE users MODIFY COLUMN wallet_balance DECIMAL(18, 2) NOT NULL DEFAULT 0.00');
-        try { await db.query('ALTER TABLE users ADD CONSTRAINT chk_wallet_positive CHECK (wallet_balance >= 0)'); } catch (e) {}
+        try { await db.query('ALTER TABLE users ADD CONSTRAINT chk_wallet_positive CHECK (wallet_balance >= 0)'); } catch { /* ignore */ }
         
         await db.query('ALTER TABLE orders MODIFY COLUMN declared_value DECIMAL(18, 2) NOT NULL DEFAULT 0.00');
         await db.query('ALTER TABLE orders MODIFY COLUMN shipping_fees DECIMAL(18, 2) NOT NULL DEFAULT 0.00');
@@ -127,24 +129,24 @@ exports.initDatabase = async () => {
         await db.query('ALTER TABLE orders MODIFY COLUMN tax_value DECIMAL(18, 2) NOT NULL DEFAULT 0.00');
         await db.query('ALTER TABLE orders MODIFY COLUMN final_price DECIMAL(18, 2) NOT NULL DEFAULT 0.00');
         
-        try { await db.query('ALTER TABLE orders ADD CONSTRAINT chk_final_price_positive CHECK (final_price >= 0)'); } catch (e) {}
-        try { await db.query('ALTER TABLE orders ADD CONSTRAINT chk_declared_value_positive CHECK (declared_value >= 0)'); } catch (e) {}
-        try { await db.query('ALTER TABLE orders ADD CONSTRAINT chk_shipping_fees_positive CHECK (shipping_fees >= 0)'); } catch (e) {}
-        try { await db.query('ALTER TABLE orders ADD CONSTRAINT chk_customs_fees_positive CHECK (customs_fees >= 0)'); } catch (e) {}
-        try { await db.query('ALTER TABLE orders ADD CONSTRAINT chk_insurance_amount_positive CHECK (insurance_amount >= 0)'); } catch (e) {}
-        try { await db.query('ALTER TABLE orders ADD CONSTRAINT chk_local_delivery_fees_positive CHECK (local_delivery_fees >= 0)'); } catch (e) {}
-        try { await db.query('ALTER TABLE orders ADD CONSTRAINT chk_tax_value_positive CHECK (tax_value >= 0)'); } catch (e) {}
+        try { await db.query('ALTER TABLE orders ADD CONSTRAINT chk_final_price_positive CHECK (final_price >= 0)'); } catch { /* ignore */ }
+        try { await db.query('ALTER TABLE orders ADD CONSTRAINT chk_declared_value_positive CHECK (declared_value >= 0)'); } catch { /* ignore */ }
+        try { await db.query('ALTER TABLE orders ADD CONSTRAINT chk_shipping_fees_positive CHECK (shipping_fees >= 0)'); } catch { /* ignore */ }
+        try { await db.query('ALTER TABLE orders ADD CONSTRAINT chk_customs_fees_positive CHECK (customs_fees >= 0)'); } catch { /* ignore */ }
+        try { await db.query('ALTER TABLE orders ADD CONSTRAINT chk_insurance_amount_positive CHECK (insurance_amount >= 0)'); } catch { /* ignore */ }
+        try { await db.query('ALTER TABLE orders ADD CONSTRAINT chk_local_delivery_fees_positive CHECK (local_delivery_fees >= 0)'); } catch { /* ignore */ }
+        try { await db.query('ALTER TABLE orders ADD CONSTRAINT chk_tax_value_positive CHECK (tax_value >= 0)'); } catch { /* ignore */ }
         
         if (!columnNames.includes('version')) {
           await db.query('ALTER TABLE orders ADD COLUMN version INT DEFAULT 1 AFTER payment_status');
         }
 
         await db.query('ALTER TABLE order_items MODIFY COLUMN price DECIMAL(18, 2) NOT NULL DEFAULT 0.00');
-        try { await db.query('ALTER TABLE order_items ADD CONSTRAINT chk_item_price_positive CHECK (price >= 0)'); } catch (e) {}
+        try { await db.query('ALTER TABLE order_items ADD CONSTRAINT chk_item_price_positive CHECK (price >= 0)'); } catch { /* ignore */ }
         
         await db.query('ALTER TABLE payments MODIFY COLUMN amount DECIMAL(18, 2) NOT NULL DEFAULT 0.00');
-        try { await db.query('ALTER TABLE payments ADD CONSTRAINT chk_payment_amount_positive CHECK (amount >= 0)'); } catch (e) {}
-      } catch (e) { logger.error('Error during financial precision migration:', e); }
+        try { await db.query('ALTER TABLE payments ADD CONSTRAINT chk_payment_amount_positive CHECK (amount >= 0)'); } catch { /* ignore */ }
+      } catch (error) { logger.error('Error during financial precision migration:', error); }
 
       // Add title to notifications if missing
       try {
@@ -153,7 +155,7 @@ exports.initDatabase = async () => {
         if (!notifColNames.includes('title')) {
           await db.query('ALTER TABLE notifications ADD COLUMN title VARCHAR(255) AFTER user_id');
         }
-      } catch (e) { /* Table might not exist yet */ }
+      } catch { /* Table might not exist yet */ }
 
       // Add reference fields to transactions if missing
       try {
@@ -177,8 +179,8 @@ exports.initDatabase = async () => {
         // Add unique index for reference
         try {
           await db.query('CREATE UNIQUE INDEX idx_unique_payment ON transactions (reference_id, reference_type)');
-        } catch (e) { /* Index might exist */ }
-      } catch (e) { /* Table might not exist yet */ }
+        } catch { /* Index might exist */ }
+      } catch { /* Table might not exist yet */ }
 
       // Add ip_address to logs if missing
       try {
@@ -208,7 +210,7 @@ exports.initDatabase = async () => {
         if (!logColNames.includes('resource_id')) {
           await db.query('ALTER TABLE logs ADD COLUMN resource_id VARCHAR(100) AFTER resource_type');
         }
-      } catch (e) { /* Table might not exist yet */ }
+      } catch { /* Table might not exist yet */ }
 
       // Add status to reviews and carriers if missing
       try {
@@ -220,7 +222,7 @@ exports.initDatabase = async () => {
         if (!reviewColNames.includes('status')) {
           await db.query("ALTER TABLE reviews ADD COLUMN status ENUM('displayed', 'hidden') DEFAULT 'displayed'");
         }
-      } catch (e) {}
+      } catch { /* ignore */ }
 
       try {
         const carrierCols = await db.query('SHOW COLUMNS FROM carriers');
@@ -228,30 +230,30 @@ exports.initDatabase = async () => {
         if (!carrierColNames.includes('status')) {
           await db.query("ALTER TABLE carriers ADD COLUMN status ENUM('active', 'inactive') DEFAULT 'active'");
         }
-      } catch (e) {}
+      } catch { /* ignore */ }
 
       // Add composite indexes
       try {
         await db.query('CREATE INDEX idx_orders_user_created ON orders (user_id, created_at)');
-      } catch (e) { /* Index might exist */ }
+      } catch { /* Index might exist */ }
       try {
         await db.query('CREATE INDEX idx_orders_status_created ON orders (status, created_at)');
-      } catch (e) { /* Index might exist */ }
+      } catch { /* Index might exist */ }
       try {
         await db.query('CREATE INDEX idx_orders_serial ON orders (serial_number)');
-      } catch (e) { /* Index might exist */ }
+      } catch { /* Index might exist */ }
       try {
         await db.query('CREATE INDEX idx_transactions_user_created ON transactions (user_id, created_at)');
-      } catch (e) { /* Index might exist */ }
+      } catch { /* Index might exist */ }
       try {
         await db.query('CREATE INDEX idx_logs_user_id ON logs (user_id)');
-      } catch (e) { /* Index might exist */ }
+      } catch { /* Index might exist */ }
       try {
         await db.query('CREATE INDEX idx_logs_created_at ON logs (created_at)');
-      } catch (e) { /* Index might exist */ }
+      } catch { /* Index might exist */ }
       try {
         await db.query('CREATE INDEX idx_logs_resource ON logs (resource_type, resource_id)');
-      } catch (e) { /* Index might exist */ }
+      } catch { /* Index might exist */ }
 
     } catch (e) {
       logger.error('Error updating orders table columns:', e);

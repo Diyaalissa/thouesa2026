@@ -6,13 +6,16 @@ const { query, pool } = require('../db.cjs');
 const logger = require('../utils/logger.js');
 const appConfig = require('../config/appConfig.js');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'thouesa_default_secret_for_dev_only_12345';
-const TOKEN_PEPPER = process.env.TOKEN_PEPPER || 'thouesa_default_pepper_for_dev_only_12345';
+const JWT_SECRET_RAW = process.env.JWT_SECRET;
+const TOKEN_PEPPER_RAW = process.env.TOKEN_PEPPER;
 
-if (process.env.NODE_ENV === 'production' && (!process.env.JWT_SECRET || !process.env.TOKEN_PEPPER)) {
+if (process.env.NODE_ENV === 'production' && (!JWT_SECRET_RAW || !TOKEN_PEPPER_RAW)) {
   console.error('❌ CRITICAL: JWT_SECRET and TOKEN_PEPPER are REQUIRED in production mode.');
   process.exit(1);
 }
+
+const JWT_SECRET = JWT_SECRET_RAW || 'thouesa_dev_fallback_secret_12345';
+const TOKEN_PEPPER = TOKEN_PEPPER_RAW || 'thouesa_dev_fallback_pepper_12345';
 
 const normalizePhone = (phone) => {
   if (!phone) return null;

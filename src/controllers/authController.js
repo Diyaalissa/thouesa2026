@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 const authService = require('../services/authService.js');
 const logger = require('../utils/logger.js');
 const { query } = require('../db.cjs');
@@ -201,18 +202,30 @@ exports.refreshToken = async (req, res, next) => {
 
 exports.logout = async (req, res, next) => {
   try {
-    const { refreshToken } = req.body;
-    if (refreshToken) {
-      await authService.revokeRefreshToken(refreshToken);
+    const { refreshToken } = req.body || {};
+    const tokenPepper = process.env.TOKEN_PEPPER;
+
+    if (refreshToken && tokenPepper) {
+      const hashedToken = crypto.createHash('sha256')
+        .update(refreshToken + tokenPepper)
+        .digest('hex');
+
+      if (req.user && req.user.id) {
+        await query('DELETE FROM refresh_tokens WHERE user_id = ? AND token = ?', [req.user.id, hashedToken]);
+      } else {
+        await query('DELETE FROM refresh_tokens WHERE token = ?', [hashedToken]);
+      }
     } else if (req.user && req.user.id) {
-      await authService.revokeUserRefreshTokens(req.user.id);
+      await query('DELETE FROM refresh_tokens WHERE user_id = ?', [req.user.id]);
     }
+
     res.clearCookie('token', {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
       path: '/'
     });
+
     res.json({
       status: 'success',
       message: 'تم تسجيل الخروج بنجاح',

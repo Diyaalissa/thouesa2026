@@ -25,6 +25,7 @@ async function fetchWithAuth(url, options = {}) {
             try {
                 const refreshRes = await fetch('/api/auth/refresh-token', {
                     method: 'POST',
+                    credentials: 'include',
                     headers: {
                         'Content-Type': 'application/json',
                         'X-CSRF-Token': csrfToken
@@ -62,6 +63,19 @@ let addresses = [];
 let selectedProductImg = null;
 let insuranceEnabled = false;
 let customsEnabled = true;
+
+function escapeHtml(value) {
+    return String(value || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+function formatMultilineText(value) {
+    return escapeHtml(value).replace(/\n/g, '<br>');
+}
 
 window.updateRoute = function() {
     const origin = document.getElementById('origin-country').value;
@@ -635,21 +649,25 @@ async function loadTickets() {
         let tickets = json.data || json;
         if(!Array.isArray(tickets)) tickets = [];
         
-        document.getElementById('tickets-list').innerHTML = tickets.map(t => `
-            <div class="card" style="padding: 15px;">
-                <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
-                    <strong>${t.subject || ''}</strong>
-                    <span style="font-size: 11px; color: var(--accent);">${t.status || ''}</span>
+        document.getElementById('tickets-list').innerHTML = tickets.map(t => {
+            const adminReply = t.admin_reply ? `
+                <div style="margin-top: 12px; padding: 12px; border-radius: 12px; background: rgba(0, 255, 163, 0.08); border: 1px solid rgba(0, 255, 163, 0.2);">
+                    <div style="font-size: 12px; font-weight: 800; color: var(--accent); margin-bottom: 6px;">رد الإدارة</div>
+                    <div style="font-size: 13px; line-height: 1.7;">${formatMultilineText(t.admin_reply)}</div>
                 </div>
-                <p style="font-size: 13px; opacity: 0.7;">${t.message || ''}</p>
-                ${t.admin_reply ? `
-                    <div style="margin-top: 12px; padding: 12px; border-radius: 10px; background: rgba(255,255,255,0.05); border: 1px solid var(--border);">
-                        <div style="font-size: 12px; font-weight: 800; color: var(--accent); margin-bottom: 6px;">رد الإدارة</div>
-                        <p style="font-size: 13px; margin: 0;">${t.admin_reply}</p>
+            ` : '';
+
+            return `
+                <div class="card" style="padding: 15px;">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 10px; gap: 12px;">
+                        <strong>${escapeHtml(t.subject || '')}</strong>
+                        <span style="font-size: 11px; color: var(--accent); white-space: nowrap;">${escapeHtml(t.status || '')}</span>
                     </div>
-                ` : ''}
-            </div>
-        `).join('') || '<p style="text-align:center; opacity:0.5;">لا توجد تذاكر دعم</p>';
+                    <p style="font-size: 13px; opacity: 0.7; line-height: 1.7;">${formatMultilineText(t.message || '')}</p>
+                    ${adminReply}
+                </div>
+            `;
+        }).join('') || '<p style="text-align:center; opacity:0.5;">لا توجد تذاكر دعم</p>';
     } catch(e) { console.error(e); }
 }
 
@@ -692,21 +710,22 @@ window.toast = function(msg) {
 window.logout = async function() {
     const token = localStorage.getItem('token');
     const refreshToken = localStorage.getItem('refreshToken');
-    if (token) {
-        try {
-            await fetch('/api/auth/logout', {
-                method: 'POST',
-                headers: { 
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json',
-                    'X-CSRF-Token': csrfToken
-                },
-                body: JSON.stringify({ refreshToken })
-            });
-        } catch (error) {
-            console.error('Logout error:', error);
-        }
+
+    try {
+        await fetch('/api/auth/logout', {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 
+                ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': csrfToken
+            },
+            body: JSON.stringify({ refreshToken })
+        });
+    } catch (error) {
+        console.error('Logout error:', error);
     }
+
     localStorage.removeItem('token');
     localStorage.removeItem('refreshToken');
     window.location.href = '/web/index.html';

@@ -13,7 +13,9 @@ const fileAuthMiddleware = require('./middleware/fileAuthMiddleware.js');
 const os = require('os');
 const NodeCache = require('node-cache');
 const { v4: uuidv4 } = require('uuid');
+const crypto = require('crypto');
 const appConfig = require('./config/appConfig.js');
+const packageJson = require('../package.json');
 
 const app = express();
 app.use(compression());
@@ -44,6 +46,8 @@ const sanitizeMiddleware = (req, res, next) => {
 // For now, we trust the first hop if configured
 if (process.env.TRUST_PROXY === 'true' || process.env.TRUST_PROXY === '1') {
   app.set('trust proxy', 1);
+} else {
+  app.set('trust proxy', false);
 }
 
 // Security Headers
@@ -115,14 +119,19 @@ app.use((req, res, next) => {
 // Middleware
 const allowedOrigins = process.env.ALLOWED_ORIGINS 
   ? process.env.ALLOWED_ORIGINS.split(',').map(v => v.trim()) 
-  : ['*']; // Default to all in dev, but should be restricted in prod
+  : (process.env.NODE_ENV === 'production' ? [] : ['*']); 
+
+if (process.env.NODE_ENV === 'production' && (allowedOrigins.length === 0 || allowedOrigins.includes('*'))) {
+  logger.error('❌ CRITICAL: ALLOWED_ORIGINS must be explicitly set and cannot be "*" in production mode.');
+}
 
 app.use(cors({
   origin: (origin, callback) => {
     // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin || allowedOrigins.includes('*') || allowedOrigins.includes(origin)) {
+    if (!origin || allowedOrigins.includes(origin) || (process.env.NODE_ENV !== 'production' && allowedOrigins.includes('*'))) {
       callback(null, true);
     } else {
+      logger.warn(`🚫 CORS Blocked: ${origin}`);
       callback(new Error('Not allowed by CORS'));
     }
   },
@@ -136,37 +145,64 @@ app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 app.use(sanitizeMiddleware);
 app.use(cookieParser());
 
+const hasValidMetricsKey = (providedKey) => {
+  const configuredKey = process.env.METRICS_KEY;
+
+  if (!configuredKey || typeof providedKey !== 'string') {
+    return false;
+  }
+
+  const configuredBuffer = Buffer.from(configuredKey);
+  const providedBuffer = Buffer.from(providedKey);
+
+  if (configuredBuffer.length !== providedBuffer.length) {
+    return false;
+  }
+
+  return crypto.timingSafeEqual(configuredBuffer, providedBuffer);
+};
+
 // Health Check (Lightweight for Load Balancers)
 app.get('/api/health', async (req, res) => {
-  try {
-    const { query } = require('./db.cjs');
-    await query('SELECT 1');
-    res.json({ status: "ok", database: "connected", timestamp: new Date().toISOString() });
-  } catch (error) {
-    logger.error('Health Check Failure (DB down, but server is up):', error.message);
-    res.status(503).json({ status: "error", database: "down", timestamp: new Date().toISOString() });
-  }
-});
+  const payload = {
+    status: 'ok',
+    database: 'connected',
+    version: packageJson.version,
+    environment: process.env.NODE_ENV || 'development',
+    timestamp: new Date().toISOString()
+  };
 
-// Public Health Check (No Key Required)
-app.get('/api/health', async (req, res) => {
   try {
     const { query, hasCredentials } = require('./db.cjs');
     if (!hasCredentials) {
-      return res.json({ status: "degraded", database: "unconfigured", timestamp: new Date().toISOString() });
+      return res.json({ 
+        ...payload,
+        status: "degraded", 
+        database: "unconfigured" 
+      });
     }
     await query('SELECT 1');
-    res.json({ status: "ok", database: "connected", timestamp: new Date().toISOString() });
+    res.json(payload);
   } catch (error) {
     logger.error('Health Check Failure (DB down, but server is up):', error.message);
-    res.status(503).json({ status: "error", database: "down", timestamp: new Date().toISOString() });
+    res.status(503).json({
+      ...payload,
+      status: 'error',
+      database: 'down'
+    });
   }
 });
 
 // Metrics / Detailed Monitoring (Protected)
 app.get('/api/metrics', async (req, res) => {
   const metricsKey = req.headers['x-metrics-key'];
-  if (!process.env.METRICS_KEY || metricsKey !== process.env.METRICS_KEY) {
+
+  if (!process.env.METRICS_KEY) {
+    logger.warn('Metrics endpoint requested without METRICS_KEY configured');
+    return res.status(503).json({ message: 'Metrics endpoint is disabled' });
+  }
+
+  if (!hasValidMetricsKey(metricsKey)) {
     return res.status(403).json({ message: 'Forbidden' });
   }
 
@@ -191,6 +227,8 @@ app.get('/api/metrics', async (req, res) => {
 
   res.json({
     status: (dbStatus === "connected" && poolStatus === "healthy") ? "ok" : "degraded",
+    version: packageJson.version,
+    environment: process.env.NODE_ENV || 'development',
     database: { status: dbStatus, pool: poolStatus },
     process: {
       uptime: process.uptime(),

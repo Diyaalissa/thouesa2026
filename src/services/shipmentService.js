@@ -55,7 +55,9 @@ exports.createShipment = async (shipmentData) => {
         // Insert into order_items if items exist and is an array
         let parsedItems = items;
         if (typeof items === 'string') {
-            try { parsedItems = JSON.parse(items); } catch (e) {}
+            try { parsedItems = JSON.parse(items); } catch {
+                // Ignore parse error
+            }
         }
         
         if (Array.isArray(parsedItems)) {
@@ -81,8 +83,8 @@ exports.createShipment = async (shipmentData) => {
             try {
                 await query('UPDATE files SET order_id = ? WHERE file_url = ? AND user_id = ? AND type = "product_image" AND order_id IS NULL',
                     [id, product_image_url, user_id]);
-            } catch (e) {
-                console.error('Error linking file to order:', e);
+            } catch (error) {
+                console.error('Error linking file to order:', error);
             }
         }
 
