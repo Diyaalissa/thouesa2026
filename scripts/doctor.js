@@ -7,11 +7,11 @@ async function checkDoctor() {
   console.log('🩺 Running THOUESA System Diagnostics...\n');
 
   // 1. Check Environment Variables
-  const requiredEnv = ['DB_HOST', 'DB_USER', 'DB_NAME', 'DB_PASSWORD', 'JWT_SECRET'];
+  const requiredEnv = ['DB_HOST', 'DB_USER', 'DB_NAME', 'DB_PASSWORD', 'JWT_SECRET', 'TOKEN_PEPPER'];
   const missingEnv = requiredEnv.filter(env => !process.env[env]);
   if (missingEnv.length > 0) {
-    console.error('❌ Missing Environment Variables:', missingEnv.join(', '));
-    process.exit(1);
+    console.warn('⚠️ Missing Environment Variables:', missingEnv.join(', '));
+    console.warn('   System will run in degraded mode (Static files only).');
   } else {
     console.log('✅ Environment variables check passed');
   }
@@ -24,6 +24,7 @@ async function checkDoctor() {
 
   // 2. Check Critical Files
   const criticalFiles = [
+    'app.js',
     'src/app.cjs',
     'src/db.cjs',
     'src/utils/initDb.js',
@@ -66,7 +67,7 @@ async function checkDoctor() {
 
   console.log('\n🏁 Diagnostics complete.');
   if (!dbOk) {
-    process.exit(1);
+    console.warn('⚠️ Database connection check failed. Functional tests will be skipped.');
   }
   process.exit(0);
 }

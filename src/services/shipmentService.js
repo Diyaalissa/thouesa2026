@@ -79,7 +79,7 @@ exports.createShipment = async (shipmentData) => {
         // Link product image to files table if exists
         if (product_image_url) {
             try {
-                await query('UPDATE files SET order_id = ? WHERE file_url = ? AND user_id = ? AND order_id IS NULL',
+                await query('UPDATE files SET order_id = ? WHERE file_url = ? AND user_id = ? AND type = "product_image" AND order_id IS NULL',
                     [id, product_image_url, user_id]);
             } catch (e) {
                 console.error('Error linking file to order:', e);

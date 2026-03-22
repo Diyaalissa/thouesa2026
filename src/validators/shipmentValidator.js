@@ -37,6 +37,7 @@ exports.updateShipmentSchema = z.object({
   local_delivery_fees: z.number().min(0).optional(),
   tax_value: z.number().min(0).optional(),
   final_price: z.number().min(0).optional(),
+  reason: z.string().optional(),
   rejection_reason: z.string().optional(),
   cancellation_reason: z.string().optional(),
   tracking_number: z.string().optional(),

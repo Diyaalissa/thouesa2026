@@ -9,6 +9,7 @@ const rateLimit = require('express-rate-limit');
 const logger = require('./utils/logger.js');
 const sanitizeHtml = require('sanitize-html');
 const upload = require('./middleware/uploadMiddleware.js');
+const fileAuthMiddleware = require('./middleware/fileAuthMiddleware.js');
 const os = require('os');
 const NodeCache = require('node-cache');
 const { v4: uuidv4 } = require('uuid');
@@ -112,12 +113,23 @@ app.use((req, res, next) => {
 });
 
 // Middleware
+const allowedOrigins = process.env.ALLOWED_ORIGINS 
+  ? process.env.ALLOWED_ORIGINS.split(',').map(v => v.trim()) 
+  : ['*']; // Default to all in dev, but should be restricted in prod
+
 app.use(cors({
-  origin: process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',').map(v => v.trim()) : [],
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin || allowedOrigins.includes('*') || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-CSRF-Token'],
-  maxAge: 600 // Cache preflight for 10 minutes
+  maxAge: 600
 }));
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
@@ -136,10 +148,25 @@ app.get('/api/health', async (req, res) => {
   }
 });
 
+// Public Health Check (No Key Required)
+app.get('/api/health', async (req, res) => {
+  try {
+    const { query, hasCredentials } = require('./db.cjs');
+    if (!hasCredentials) {
+      return res.json({ status: "degraded", database: "unconfigured", timestamp: new Date().toISOString() });
+    }
+    await query('SELECT 1');
+    res.json({ status: "ok", database: "connected", timestamp: new Date().toISOString() });
+  } catch (error) {
+    logger.error('Health Check Failure (DB down, but server is up):', error.message);
+    res.status(503).json({ status: "error", database: "down", timestamp: new Date().toISOString() });
+  }
+});
+
 // Metrics / Detailed Monitoring (Protected)
 app.get('/api/metrics', async (req, res) => {
   const metricsKey = req.headers['x-metrics-key'];
-  if (process.env.NODE_ENV === 'production' && metricsKey !== process.env.METRICS_KEY) {
+  if (!process.env.METRICS_KEY || metricsKey !== process.env.METRICS_KEY) {
     return res.status(403).json({ message: 'Forbidden' });
   }
 
@@ -202,38 +229,18 @@ app.get('/api/server-info', authenticate, authorize(['admin']), (req, res) => {
 app.use('/web', express.static(path.join(__dirname, '../web')));
 
 // Protected Uploads
-app.get('/uploads/:filename', authenticate, async (req, res) => {
+app.get('/uploads/:filename', authenticate, fileAuthMiddleware, async (req, res) => {
   const filename = req.params.filename;
   if (filename.includes('..') || filename.includes('/')) {
     return res.status(400).json({ message: 'Invalid filename' });
   }
   
-  const fileUrl = '/uploads/' + filename;
-  const { pool } = require('./db.cjs');
-  try {
-    const [files] = await pool.query('SELECT user_id FROM files WHERE file_url = ?', [fileUrl]);
-    if (files.length > 0) {
-      const file = files[0];
-      if (file.user_id !== req.user.id && req.user.role !== 'admin') {
-        return res.status(403).json({ message: 'Forbidden' });
-      }
-    } else {
-      // If file not in DB, only admin can access or we deny.
-      // For safety, let's deny if not admin.
-      if (req.user.role !== 'admin') {
-        return res.status(403).json({ message: 'Forbidden' });
-      }
+  const filePath = path.join(__dirname, '../uploads', filename);
+  res.sendFile(filePath, (err) => {
+    if (err) {
+      res.status(404).json({ message: 'File not found' });
     }
-    
-    const filePath = path.join(__dirname, '../uploads', filename);
-    res.sendFile(filePath, (err) => {
-      if (err) {
-        res.status(404).json({ message: 'File not found' });
-      }
-    });
-  } catch (err) {
-    res.status(500).json({ message: 'Server error' });
-  }
+  });
 });
 
 // Dashboard Routes (No CSRF)

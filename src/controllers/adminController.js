@@ -191,7 +191,7 @@ exports.saveSettings = async (req, res, next) => {
         
         await query(sql, [
             s.site_name || 'THOUESA', 
-            s.site_logo || '/web/assets/logo/logo.png',
+            s.site_logo || '/assets/logo/logo.png',
             s.hero_title || '', 
             s.hero_slogan || '', 
             s.hero_bg || '', 
@@ -789,14 +789,18 @@ exports.deleteWarehouse = async (req, res, next) => {
 
 exports.getNotifications = async (req, res, next) => {
     try {
-        const notifications = await query('SELECT n.*, u.full_name as user_name FROM notifications n LEFT JOIN users u ON n.user_id = u.id ORDER BY n.created_at DESC LIMIT 100');
+        const limit = parseInt(req.query.limit) || 100;
+        const offset = parseInt(req.query.offset) || 0;
+        const notifications = await query('SELECT n.*, u.full_name as user_name FROM notifications n LEFT JOIN users u ON n.user_id = u.id ORDER BY n.created_at DESC LIMIT ? OFFSET ?', [limit, offset]);
         res.json({ status: 'success', message: '', data: notifications });
     } catch (error) { next(error); }
 };
 
 exports.getFiles = async (req, res, next) => {
     try {
-        const files = await query('SELECT f.*, u.full_name as user_name, o.serial_number FROM files f LEFT JOIN users u ON f.user_id = u.id LEFT JOIN orders o ON f.order_id = o.id ORDER BY f.created_at DESC LIMIT 100');
+        const limit = parseInt(req.query.limit) || 100;
+        const offset = parseInt(req.query.offset) || 0;
+        const files = await query('SELECT f.*, u.full_name as user_name, o.serial_number FROM files f LEFT JOIN users u ON f.user_id = u.id LEFT JOIN orders o ON f.order_id = o.id ORDER BY f.created_at DESC LIMIT ? OFFSET ?', [limit, offset]);
         res.json({ status: 'success', message: '', data: files });
     } catch (error) { next(error); }
 };

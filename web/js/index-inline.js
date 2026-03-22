@@ -43,7 +43,7 @@ async function load() {
             // Logo Management
             const logos = document.querySelectorAll('img[data-logo]');
             logos.forEach(img => {
-                img.src = sets.site_logo || '/web/assets/logo/logo.png';
+                img.src = sets.site_logo || '/assets/logo/logo.png';
             });
 
             // Social Links

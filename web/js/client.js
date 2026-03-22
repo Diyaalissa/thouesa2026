@@ -87,7 +87,7 @@ window.register = async function() {
                 'Content-Type': 'application/json',
                 'X-CSRF-Token': csrfToken
             },
-            body: JSON.stringify({ name: full_name, email, password, phone: fullPhone })
+            body: JSON.stringify({ full_name, email, password, phone: fullPhone })
         });
         const json = await res.json();
         const data = json.data;

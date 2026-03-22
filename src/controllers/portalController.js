@@ -93,6 +93,21 @@ exports.createOrder = async (req, res, next) => {
       estimated_delivery, warehouse_id
     } = req.body;
     
+    if (product_image_url) {
+      const productImage = await query(
+        'SELECT id FROM files WHERE file_url = ? AND user_id = ? AND type = "product_image" AND order_id IS NULL LIMIT 1',
+        [product_image_url, req.user.id]
+      );
+
+      if (!productImage[0]) {
+        return res.status(400).json({
+          status: 'error',
+          message: 'Invalid product image reference',
+          data: null
+        });
+      }
+    }
+
     const result = await shipmentService.createShipment({
       user_id: req.user.id,
       type,
@@ -273,6 +288,13 @@ exports.uploadProductImage = async (req, res, next) => {
     }
     const filePath = `/uploads/${req.file.filename}`;
     const orderId = req.body.order_id || req.query.order_id || null;
+
+    if (orderId) {
+      const order = await query('SELECT id FROM orders WHERE id = ? AND user_id = ? LIMIT 1', [orderId, req.user.id]);
+      if (!order[0]) {
+        return res.status(403).json({ status: 'error', message: 'Forbidden order reference' });
+      }
+    }
     
     // Register in files table
     const fileId = uuidv4();

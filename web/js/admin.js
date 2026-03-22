@@ -590,9 +590,9 @@ const loadOrders = async () => {
             const tbody = document.getElementById('admin-orders-table');
             tbody.innerHTML = orders.map(order => `
                 <tr>
-                    <td>${order.tracking_number || order.id.substring(0, 8)}</td>
-                    <td>${order.customer_name}</td>
-                    <td>${order.origin} ➔ ${order.destination}</td>
+                    <td>${order.serial_number || order.tracking_number || order.id.substring(0, 8)}</td>
+                    <td>${order.full_name || order.user_email || '-'}</td>
+                    <td>${order.origin_country || '-'} ➔ ${order.destination_country || '-'}</td>
                     <td><span class="badge badge-${getStatusClass(order.status)}">${order.status}</span></td>
                     <td>$${order.final_price || 0}</td>
                     <td>

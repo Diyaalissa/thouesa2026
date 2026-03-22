@@ -1,4 +1,3 @@
-const path = require('path');
 const { query } = require('../db.cjs');
 const { v4: uuidv4 } = require('uuid');
 

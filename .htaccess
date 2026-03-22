@@ -1,0 +1,14 @@
+# .htaccess for cPanel/Apache Proxy to Node.js
+# This assumes your Node.js app runs on port 3000
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  
+  # Redirect all traffic to the Node.js app
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteRule ^(.*)$ http://localhost:3000/$1 [P,L]
+</IfModule>
+
+# Security Headers (Optional, as Helmet handles them)
+# Header set X-Content-Type-Options "nosniff"

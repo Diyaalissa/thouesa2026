@@ -177,6 +177,14 @@ exports.refreshToken = async (req, res, next) => {
     const result = await authService.refreshAccessToken(refreshToken, clientInfo);
     if (!result) return res.status(401).json({ message: 'Invalid or expired refresh token' });
 
+    res.cookie('token', result.accessToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 24 * 60 * 60 * 1000
+    });
+
     res.json({
       status: 'success',
       message: 'Token refreshed',
@@ -194,12 +202,10 @@ exports.refreshToken = async (req, res, next) => {
 exports.logout = async (req, res, next) => {
   try {
     const { refreshToken } = req.body;
-    if (req.user && req.user.id) {
-      if (refreshToken) {
-        await query('DELETE FROM refresh_tokens WHERE user_id = ? AND token = ?', [req.user.id, refreshToken]);
-      } else {
-        await query('DELETE FROM refresh_tokens WHERE user_id = ?', [req.user.id]);
-      }
+    if (refreshToken) {
+      await authService.revokeRefreshToken(refreshToken);
+    } else if (req.user && req.user.id) {
+      await authService.revokeUserRefreshTokens(req.user.id);
     }
     res.clearCookie('token', {
       httpOnly: true,

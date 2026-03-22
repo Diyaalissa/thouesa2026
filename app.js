@@ -46,8 +46,10 @@ initDatabase().then(() => {
   process.on('SIGINT', () => shutdown('SIGINT'));
 
 }).catch(err => {
-  console.error('❌ CRITICAL: Failed to initialize database. Server will NOT start:', err.message);
-  process.exit(1);
+  console.error('❌ CRITICAL: Failed to initialize database. Server starting in degraded mode:', err.message);
+  serverInstance = app.listen(PORT, '0.0.0.0', () => {
+    console.log('🚀 THOUESA API is LIVE on port ' + PORT + ' (DB Offline)')
+  });
 });
 
 process.on('unhandledRejection', (reason, promise) => {

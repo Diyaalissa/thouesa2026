@@ -642,6 +642,12 @@ async function loadTickets() {
                     <span style="font-size: 11px; color: var(--accent);">${t.status || ''}</span>
                 </div>
                 <p style="font-size: 13px; opacity: 0.7;">${t.message || ''}</p>
+                ${t.admin_reply ? `
+                    <div style="margin-top: 12px; padding: 12px; border-radius: 10px; background: rgba(255,255,255,0.05); border: 1px solid var(--border);">
+                        <div style="font-size: 12px; font-weight: 800; color: var(--accent); margin-bottom: 6px;">رد الإدارة</div>
+                        <p style="font-size: 13px; margin: 0;">${t.admin_reply}</p>
+                    </div>
+                ` : ''}
             </div>
         `).join('') || '<p style="text-align:center; opacity:0.5;">لا توجد تذاكر دعم</p>';
     } catch(e) { console.error(e); }

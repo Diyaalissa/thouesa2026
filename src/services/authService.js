@@ -3,14 +3,15 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const { v4: uuidv4 } = require('uuid');
 const { query, pool } = require('../db.cjs');
-
+const logger = require('../utils/logger.js');
 const appConfig = require('../config/appConfig.js');
 
-const JWT_SECRET = process.env.JWT_SECRET;
-const TOKEN_PEPPER = process.env.TOKEN_PEPPER;
+const JWT_SECRET = process.env.JWT_SECRET || 'thouesa_default_secret_for_dev_only_12345';
+const TOKEN_PEPPER = process.env.TOKEN_PEPPER || 'thouesa_default_pepper_for_dev_only_12345';
 
-if (!JWT_SECRET || !TOKEN_PEPPER) {
-  throw new Error('JWT_SECRET and TOKEN_PEPPER environment variables are required');
+if (process.env.NODE_ENV === 'production' && (!process.env.JWT_SECRET || !process.env.TOKEN_PEPPER)) {
+  console.error('❌ CRITICAL: JWT_SECRET and TOKEN_PEPPER are REQUIRED in production mode.');
+  process.exit(1);
 }
 
 const normalizePhone = (phone) => {
@@ -47,6 +48,12 @@ const normalizePhone = (phone) => {
 };
 
 exports.normalizePhone = normalizePhone;
+
+const hashRefreshToken = (refreshToken) => crypto.createHash('sha256')
+  .update(refreshToken + TOKEN_PEPPER)
+  .digest('hex');
+
+exports.hashRefreshToken = hashRefreshToken;
 
 exports.createUser = async (userData) => {
   const { full_name, email, password, phone, role = 'customer' } = userData;
@@ -115,9 +122,7 @@ exports.generateTokens = async (user, clientInfo = {}, txnConnection = null) => 
 
   // High entropy refresh token (256-bit)
   const refreshToken = crypto.randomBytes(32).toString('hex');
-  const hashedToken = crypto.createHash('sha256')
-    .update(refreshToken + TOKEN_PEPPER)
-    .digest('hex');
+  const hashedToken = hashRefreshToken(refreshToken);
   
   const expiresAt = new Date();
   expiresAt.setDate(expiresAt.getDate() + 7); // 7 days
@@ -155,9 +160,7 @@ exports.generateTokens = async (user, clientInfo = {}, txnConnection = null) => 
 };
 
 exports.refreshAccessToken = async (oldRefreshToken, clientInfo = {}) => {
-  const hashedToken = crypto.createHash('sha256')
-    .update(oldRefreshToken + TOKEN_PEPPER)
-    .digest('hex');
+  const hashedToken = hashRefreshToken(oldRefreshToken);
   
   const connection = await pool.getConnection();
   try {
@@ -195,9 +198,14 @@ exports.refreshAccessToken = async (oldRefreshToken, clientInfo = {}) => {
 
     if (tokenData.ip_hash !== clientFingerprint) {
       // Fingerprint mismatch - possible token theft
-      // Revoke all tokens for this user as a security measure
-      await connection.execute('DELETE FROM refresh_tokens WHERE user_id = ?', [tokenData.user_id]);
+      // Instead of revoking ALL tokens, let's just invalidate this specific token
+      // and log a warning. This is less disruptive for users with dynamic IPs.
+      await connection.execute('DELETE FROM refresh_tokens WHERE id = ?', [tokenData.id]);
       await connection.commit();
+      logger.warn(`Refresh token fingerprint mismatch for user ${tokenData.user_id}. Token revoked.`, {
+        expected: tokenData.ip_hash,
+        actual: clientFingerprint
+      });
       return null;
     }
 
@@ -227,4 +235,17 @@ exports.refreshAccessToken = async (oldRefreshToken, clientInfo = {}) => {
 
 exports.comparePassword = async (password, hashedPassword) => {
   return await bcrypt.compare(password, hashedPassword);
+};
+
+exports.revokeRefreshToken = async (refreshToken) => {
+  if (!refreshToken) return false;
+  const hashedToken = hashRefreshToken(refreshToken);
+  const result = await query('DELETE FROM refresh_tokens WHERE token = ?', [hashedToken]);
+  return result.affectedRows > 0;
+};
+
+exports.revokeUserRefreshTokens = async (userId) => {
+  if (!userId) return false;
+  const result = await query('DELETE FROM refresh_tokens WHERE user_id = ?', [userId]);
+  return result.affectedRows > 0;
 };

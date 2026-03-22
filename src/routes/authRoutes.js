@@ -28,7 +28,7 @@ const validate = (schema) => (req, res, next) => {
 router.post('/register', validate(registerSchema), authController.register);
 router.post('/login', loginLimiter, validate(loginSchema), authController.login);
 router.post('/refresh-token', authController.refreshToken);
-router.post('/logout', authenticate, authController.logout);
+router.post('/logout', authController.logout);
 router.get('/me', authenticate, authController.getMe);
 
 module.exports = router;

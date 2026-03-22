@@ -4,6 +4,7 @@
   "main": "app.js",
   "scripts": {
     "start": "node app.js",
+    "dev": "node app.js",
     "db:init": "node src/utils/initDb.js",
     "doctor": "node scripts/doctor.js",
     "lint": "npx eslint src/**/*.js src/**/*.cjs web/js/*.js scripts/*.js app.js",
