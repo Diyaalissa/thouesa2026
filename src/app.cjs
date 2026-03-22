@@ -54,6 +54,7 @@ if (process.env.TRUST_PROXY === 'true' || process.env.TRUST_PROXY === '1') {
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
+      scriptSrcAttr: null,
       defaultSrc: ["'self'"],
       scriptSrc: ["'self'", "'unsafe-inline'"],
       styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],

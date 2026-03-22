@@ -1,3 +1,4 @@
+require('dotenv').config();
 const db = require('../db.cjs');
 const { SCHEMA } = require('../models/schema.js');
 const logger = require('./logger.js');
