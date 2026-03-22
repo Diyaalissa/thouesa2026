@@ -9,10 +9,11 @@ const loginAttemptsCache = new NodeCache({ stdTTL: 600 });
 
 exports.register = async (req, res, next) => {
   try {
-    let { name, email, password, phone } = req.body;
+    let { name, full_name, email, password, phone } = req.body;
+    const resolvedName = (full_name || name || "").trim();
     
     // Basic validation
-    if (!name || !password || !phone) {
+    if (!resolvedName || !password || !phone) {
       return res.status(400).json({ message: 'يرجى إدخال جميع البيانات المطلوبة (الاسم، كلمة المرور، الهاتف)' });
     }
 
@@ -34,7 +35,7 @@ exports.register = async (req, res, next) => {
     }
 
     const user = await authService.createUser({
-      full_name: name,
+      full_name: resolvedName,
       email,
       password,
       phone: normalizedPhone,
